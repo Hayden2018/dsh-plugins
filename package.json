@@ -1,0 +1,13 @@
+{
+  "name": "dsh-plugins-workspace",
+  "private": true,
+  "description": "Local DSH plugin packages. Formatting is shared via the root Prettier config.",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}

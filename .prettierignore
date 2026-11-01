@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+.npm-cache/
+.pnpm-store/
+
+# Lockfiles
+package-lock.json
+pnpm-lock.yaml
+
+# Runtime output and scratch
+shots/
+dsh-playwright/shots/
+.tmp/
+*.log

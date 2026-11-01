@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Knowledge Graph",
+    "description": "A profile-local entity graph stored in SQLite, with search, text drawing, path tracing, and explicit purge controls."
+  }
+}

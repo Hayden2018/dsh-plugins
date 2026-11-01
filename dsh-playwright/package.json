@@ -1,0 +1,49 @@
+{
+  "name": "playwright-browser",
+  "version": "0.5.1",
+  "description": "Playwright browser automation tools for DSH: open pages, click, type, fill, extract, screenshot.",
+  "type": "module",
+  "files": [
+    "lib/",
+    "assets/",
+    "scripts/",
+    "README.md",
+    "SITE-MAP-SPEC.md",
+    "cordis.patch.yml"
+  ],
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./skill-provider": "./lib/skill-provider.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "playwright-core": "^1.62.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": "^0.2.0-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "dsh": "^0.2.0-rc.2"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "playwright",
+    "browser-automation",
+    "web-scraping"
+  ],
+  "license": "MIT"
+}

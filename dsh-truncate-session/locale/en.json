@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Truncate session",
+    "description": "Adds a truncate action beside the branch control: it forks the Session at that turn, opens the fork, archives the original, and puts a dropped last prompt back in the input box."
+  }
+}

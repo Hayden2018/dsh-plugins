@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Archive cleanup",
+    "description": "Counts archived sessions by their latest activity and deletes their logs after a two-step confirmation."
+  }
+}

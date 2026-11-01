@@ -1,0 +1,3 @@
+- insert:
+    - id: archive-purge
+      name: 'dsh-archive-purge'

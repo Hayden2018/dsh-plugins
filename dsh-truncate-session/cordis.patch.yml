@@ -1,0 +1,3 @@
+- insert:
+    - id: truncate-session
+      name: 'dsh-truncate-session'

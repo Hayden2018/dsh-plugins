@@ -1,0 +1,3 @@
+- insert:
+    - id: prompt-editor
+      name: 'dsh-prompt-editor'

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Prompt Editor",
+    "description": "Preview each agent mode's system prompt and append mode-specific instructions."
+  }
+}

@@ -1,0 +1,3 @@
+- insert:
+    - id: knowledge-graph
+      name: 'dsh-knowledge-graph'
