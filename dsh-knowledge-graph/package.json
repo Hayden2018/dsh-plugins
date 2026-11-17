@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Installation-wide SQLite knowledge graph with search, query, traversal, merge, history, and purge controls.",
+  "description": "Installation-wide SQLite knowledge graph with search, query, traversal, merge, history, and an interactive right-Sidebar graph.",
   "engines": {
     "node": ">=22.19.0"
   },
@@ -11,15 +11,22 @@
   "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
-    "./client": "./client.js",
+    "./client": "./dist/client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
     "./package.json": "./package.json"
   },
+  "scripts": {
+    "build": "node scripts/build-client.mjs",
+    "watch": "node scripts/build-client.mjs --watch",
+    "prepack": "node scripts/build-client.mjs"
+  },
   "files": [
     "index.js",
-    "client.js",
+    "dist/",
     "lib/*.js",
+    "src/**/*",
+    "scripts/*.mjs",
     "cordis.patch.yml",
     "locale/*.json",
     "icon.svg",
@@ -36,11 +43,18 @@
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-ui-settings",
         "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-theme",
+        "@deepseek-ai/dsh-client-ui-sidebar-right",
         "@deepseek-ai/dsh-api-remotes"
       ]
     }
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "3.18.4"
+  },
+  "devDependencies": {
+    "cytoscape": "3.35.0",
+    "cytoscape-fcose": "2.2.0",
+    "esbuild": "0.28.2"
   }
 }

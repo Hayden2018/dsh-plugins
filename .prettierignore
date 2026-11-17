@@ -10,5 +10,6 @@ pnpm-lock.yaml
 # Runtime output and scratch
 shots/
 dsh-playwright/shots/
+dist/
 .tmp/
 *.log

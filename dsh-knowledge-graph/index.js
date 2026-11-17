@@ -38,11 +38,29 @@ export const Config = z.object({
   maxGetChars: z.number().min(1_000).max(400_000).default(200_000),
   /** Upper bound on `kg_trace_node`'s `max_hops`. */
   maxTraceHops: z.number().min(1).max(50).default(32),
+  /** Entities one Web graph snapshot may include, highest degree first. */
+  maxGraphNodes: z.number().min(1).max(10_000).default(2_000),
+  /** Relations one Web graph snapshot may include. */
+  maxGraphEdges: z.number().min(1).max(50_000).default(8_000),
 });
 
 /** Path of the maintenance endpoint used by the Web panel. */
 const ADMIN_PATH = '/knowledge-graph/admin';
+/** Path of the graph snapshot read by the right-Sidebar visualization. */
+const GRAPH_PATH = '/knowledge-graph/graph';
+/** Path of one entity's full record, read by the visualization's inspector. */
+const NODE_PATH = '/knowledge-graph/node';
 const MAX_BODY_BYTES = 8_192;
+/** Edge description preview carried by the graph snapshot. */
+const MAX_EDGE_PREVIEW = 600;
+/** Characters of a node description returned to the inspector. */
+const MAX_NODE_PREVIEW = 40_000;
+/** Characters of one edge description returned to the inspector. */
+const MAX_EDGE_DETAIL = 20_000;
+/** Body bound for one node edit; descriptions are the large field. */
+const NODE_BODY_BYTES = 262_144;
+/** The only fields the Web editor may change. */
+const EDITABLE_NODE_FIELDS = new Set(['name', 'type', 'tags', 'description']);
 
 /**
  * Resolve the installation-wide harness home.
@@ -121,6 +139,28 @@ function errorView(error) {
   };
 }
 
+/** HTTP status for one graph mutation failure. */
+function errorStatus(error) {
+  switch (error?.code) {
+    case 'invalid_args':
+    case 'bad_request':
+    case 'confirmation_required':
+      return 400;
+    case 'not_found':
+      return 404;
+    case 'revision_conflict':
+    case 'already_exists':
+    case 'has_edges':
+    case 'duplicate_ref':
+    case 'unknown_ref':
+      return 409;
+    case 'storage_busy':
+      return 503;
+    default:
+      return 500;
+  }
+}
+
 /**
  * Read one small JSON request body.
  * @param req - incoming request.
@@ -142,6 +182,109 @@ async function readJsonBody(req, maxBytes) {
   } catch {
     throw new GraphError('invalid_args', 'Request body must be JSON.');
   }
+}
+
+/** Clip one string for a compact Web preview. */
+function clip(text, max) {
+  if (typeof text !== 'string' || text.length <= max) return text;
+  return `${text.slice(0, max)}…`;
+}
+
+/**
+ * Build the compact graph the right-Sidebar canvas renders. Nodes are ordered
+ * by degree so a capped snapshot keeps the structural hubs; edges survive only
+ * when both endpoints do. Descriptions are previews here; the inspector reads
+ * one entity's full record from the node endpoint.
+ * @param store - the live graph store.
+ * @param limits - configured graph caps.
+ * @returns the snapshot and its cap facts.
+ */
+function graphSnapshot(store, limits) {
+  store.assertReady();
+  const allNodes = [];
+  for (const node of store.nodes.values()) {
+    const degree = store.degreeOf(node.id);
+    allNodes.push({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      tags: [...node.tags],
+      in: degree.in,
+      out: degree.out,
+      degree: degree.in + degree.out,
+      updated_at: node.updated_at,
+    });
+  }
+  allNodes.sort(
+    (left, right) =>
+      right.degree - left.degree ||
+      left.name.localeCompare(right.name) ||
+      left.id.localeCompare(right.id)
+  );
+  const nodes = allNodes.slice(0, limits.maxGraphNodes);
+  const keep = new Set(nodes.map((node) => node.id));
+  // Cytoscape requires unique ids across nodes and edges. Node ids are
+  // user-chosen slugs, so pick an edge prefix that no kept node id starts with
+  // rather than assuming `e0` is free.
+  let edgePrefix = '__kg_edge__';
+  while (nodes.some((node) => node.id.startsWith(edgePrefix))) edgePrefix = `_${edgePrefix}`;
+  const allEdges = store.allEdges();
+  const edges = [];
+  for (const edge of allEdges) {
+    if (!keep.has(edge.from_id) || !keep.has(edge.to_id)) continue;
+    if (edges.length >= limits.maxGraphEdges) break;
+    edges.push({
+      id: `${edgePrefix}${edges.length}`,
+      source: edge.from_id,
+      target: edge.to_id,
+      relation: edge.relation,
+      description: clip(edge.description, MAX_EDGE_PREVIEW),
+    });
+  }
+  return {
+    nodes,
+    edges,
+    totals: { nodes: allNodes.length, edges: allEdges.length },
+    truncated: nodes.length < allNodes.length || edges.length < allEdges.length,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Build one entity's inspector record: the full stored description, tags,
+ * attachments, both edge directions, and degree.
+ * @param store - the live graph store.
+ * @param id - exact entity id.
+ * @returns the record, or undefined when the entity does not exist.
+ */
+function nodeSnapshot(store, id) {
+  const { nodes } = store.get({
+    ids: [id],
+    includeEdges: true,
+    direction: 'both',
+    edgeLimit: 200,
+  });
+  const node = nodes[0];
+  if (node === undefined) return undefined;
+  const degree = store.degreeOf(id);
+  const edgeView = (edge) => ({
+    ...edge,
+    description: clip(edge.description, MAX_EDGE_DETAIL),
+  });
+  return {
+    ...node,
+    description: clip(node.description, MAX_NODE_PREVIEW),
+    tags: [...node.tags],
+    attachments: [...node.attachments],
+    in: degree.in,
+    out: degree.out,
+    degree: degree.in + degree.out,
+    edges: {
+      outgoing: node.edges.outgoing.map(edgeView),
+      incoming: node.edges.incoming.map(edgeView),
+      truncated: node.edges.truncated,
+    },
+  };
 }
 
 /**
@@ -223,6 +366,192 @@ function registerAdminRoute(routeCtx, store) {
 }
 
 /**
+ * Serve the compact graph snapshot, one entity's inspector record, and the
+ * user edit action to the right-Sidebar visualization. Reads are same-origin;
+ * the edit requires the same connection check plus a JSON body and the
+ * `x-dsh-kg-action: update` header.
+ * @param routeCtx - context carrying `webServer` and `connection`.
+ * @param store - the live graph store.
+ * @param limits - configured graph caps.
+ */
+function registerGraphRoutes(routeCtx, store, limits) {
+  /** Reject an unauthenticated request; true means the caller may proceed. */
+  const allowed = (req, res, method) => {
+    let rejection;
+    try {
+      rejection = routeCtx.connection.requestRejection(req);
+    } catch (error) {
+      sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
+      return false;
+    }
+    if (rejection === undefined) return true;
+    res.writeHead(rejection);
+    res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
+    return false;
+  };
+
+  const graphHandler = async (req, res) => {
+    const method = req.method ?? 'GET';
+    if (!allowed(req, res, method)) return;
+    if (method !== 'GET' && method !== 'HEAD') {
+      res.writeHead(405, { allow: 'GET, HEAD' });
+      res.end();
+      return;
+    }
+    try {
+      sendJson(res, 200, { ok: true, graph: graphSnapshot(store, limits) }, method === 'HEAD');
+    } catch (error) {
+      sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
+    }
+  };
+
+  /** Apply one user edit to an existing entity. */
+  const updateNode = async (req, res) => {
+    if (req.headers['x-dsh-kg-action'] !== 'update') {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'bad_request', message: 'Missing the x-dsh-kg-action: update header.' },
+      });
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req, NODE_BODY_BYTES);
+    } catch (error) {
+      sendJson(res, 400, { ok: false, error: errorView(error) });
+      return;
+    }
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_args', message: 'Request body must be a JSON object.' },
+      });
+      return;
+    }
+    const id = typeof body.id === 'string' ? body.id.trim() : '';
+    if (id.length === 0) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_args', message: '`id` must be a non-empty entity id.' },
+      });
+      return;
+    }
+    const expected = body.expected_revision;
+    if (!Number.isInteger(expected) || expected < 1) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_args', message: '`expected_revision` must be a positive integer.' },
+      });
+      return;
+    }
+    const patch = body.patch;
+    if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_args', message: '`patch` must be a JSON object.' },
+      });
+      return;
+    }
+    const keys = Object.keys(patch);
+    if (keys.length === 0) {
+      sendJson(res, 400, {
+        ok: false,
+        error: {
+          code: 'invalid_args',
+          message: 'Provide at least one of `name`, `type`, `tags`, or `description`.',
+        },
+      });
+      return;
+    }
+    const unknown = keys.filter((key) => !EDITABLE_NODE_FIELDS.has(key));
+    if (unknown.length > 0) {
+      sendJson(res, 400, {
+        ok: false,
+        error: {
+          code: 'invalid_args',
+          message: `Only name, type, tags, and description may be edited (got ${unknown.join(', ')}).`,
+        },
+      });
+      return;
+    }
+    const rawSession = req.headers['x-dsh-kg-session'];
+    const sessionId =
+      (Array.isArray(rawSession) ? rawSession[0] : rawSession ?? '').trim().slice(0, 200) || 'web-ui';
+    try {
+      store.save(
+        { nodes: { update: [{ id, expected_revision: expected, ...patch }] } },
+        { sessionId, cwd: process.cwd() }
+      );
+      const node = nodeSnapshot(store, id);
+      if (node === undefined) {
+        sendJson(res, 404, {
+          ok: false,
+          error: { code: 'not_found', message: `Entity ${id} does not exist.` },
+        });
+        return;
+      }
+      sendJson(res, 200, { ok: true, node });
+    } catch (error) {
+      sendJson(res, errorStatus(error), { ok: false, error: errorView(error) });
+    }
+  };
+
+  const nodeHandler = async (req, res) => {
+    const method = req.method ?? 'GET';
+    if (!allowed(req, res, method)) return;
+    if (method === 'POST') {
+      await updateNode(req, res);
+      return;
+    }
+    if (method !== 'GET' && method !== 'HEAD') {
+      res.writeHead(405, { allow: 'GET, HEAD, POST' });
+      res.end();
+      return;
+    }
+    let id;
+    try {
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      id = (url.searchParams.get('id') ?? '').trim();
+    } catch {
+      id = '';
+    }
+    if (id.length === 0) {
+      sendJson(
+        res,
+        400,
+        { ok: false, error: { code: 'invalid_args', message: 'Pass `?id=<entity id>`.' } },
+        method === 'HEAD'
+      );
+      return;
+    }
+    try {
+      const node = nodeSnapshot(store, id);
+      if (node === undefined) {
+        sendJson(
+          res,
+          404,
+          { ok: false, error: { code: 'not_found', message: `Entity ${id} does not exist.` } },
+          method === 'HEAD'
+        );
+        return;
+      }
+      sendJson(res, 200, { ok: true, node }, method === 'HEAD');
+    } catch (error) {
+      sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
+    }
+  };
+
+  routeCtx.effect(
+    () => routeCtx.webServer.register({ kind: 'exact', path: GRAPH_PATH, handler: graphHandler }),
+    'knowledge-graph: graph route'
+  );
+  routeCtx.effect(
+    () => routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, handler: nodeHandler }),
+    'knowledge-graph: node route'
+  );
+}
+
+/**
  * Mount the graph store, its tools, and the maintenance route.
  * @param ctx - host plugin context.
  * @param config - resolved plugin Config.
@@ -234,6 +563,8 @@ export function apply(ctx, config) {
     maxDrawChars: limit(config?.maxDrawChars, 16_000, 1_000, 200_000),
     maxGetChars: limit(config?.maxGetChars, 200_000, 1_000, 400_000),
     maxTraceHops: limit(config?.maxTraceHops, 32, 1, 50),
+    maxGraphNodes: limit(config?.maxGraphNodes, 2_000, 1, 10_000),
+    maxGraphEdges: limit(config?.maxGraphEdges, 8_000, 1, 50_000),
   };
   const location = resolveDataDir(ctx, config);
   if (location.source === 'default') {
@@ -266,5 +597,6 @@ export function apply(ctx, config) {
 
   ctx.inject(['webServer', 'connection'], (routeCtx) => {
     registerAdminRoute(routeCtx, store);
+    registerGraphRoutes(routeCtx, store, limits);
   });
 }
