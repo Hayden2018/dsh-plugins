@@ -98,6 +98,22 @@ export PW_CDP_ENDPOINT=chrome
 
 For the `chrome` channel, Chrome 136 and later may require enabling remote debugging in the target browser at `chrome://inspect/#remote-debugging` and approving each new CDP connection. A pending approval can look like a connection timeout. The exact prompts and behavior depend on the browser version.
 
+### Optional Windows auto-approval
+
+In **Plugins → Playwright browser**, enable **Attempt auto approve on browser attachment** to attempt native Chrome consent approval. This option is **off by default** and is persisted as the live plugin Config field `attemptAutoApprove`; changing it does not disconnect the browser. Switching it off also stops a pending approval helper. The helper and toggle are unavailable on non-Windows **hosts**, regardless of the OS running the Web UI.
+
+Enabling this option grants automation access to the attached browser's tabs and signed-in sessions. It does not enable Chrome remote debugging for you. Approval is attempted only for a local `ws://` browser endpoint whose port and full path match Chrome's default-profile `DevToolsActivePort`, and only in windows owned by the `chrome.exe` listening on that port. Remote endpoints, HTTP endpoints, Edge, and plugin-launched browsers are not auto-approved. If the endpoint address resolves to multiple listening process owners, the helper declines to guess.
+
+The helper uses Windows PowerShell and UI Automation without moving the mouse or focusing Chrome. It searches direct native window children, waits 800 ms for Chrome's activation-protection timer, invokes **Allow once**, and then exits rather than approving later requests while Playwright initializes tabs. It recognizes Chromium's native approval labels in **10 languages**: English, Chinese (Simplified and Traditional), Spanish (Spain and Latin America), Hindi, Arabic, Portuguese (Brazil and Portugal), Russian, Japanese, German, and French (France and Canada). Recognition follows Chrome's actual dialog labels, independently of Windows, `PW_LANG`, or the Harness UI language; no language selection is needed. Title and affirmative button must match the same published translation pair. Only Unicode composition, equivalent whitespace, and bidirectional display marks are normalized; there is no fuzzy matching or generic “Allow” fallback. Missing UI Automation/PowerShell, inaccessible desktop sessions, unsupported languages, or changed dialog wording leave manual approval necessary; attachment still uses its normal timeout and diagnostics.
+
+The label pairs come from [Chromium's resource translations](https://chromium.googlesource.com/chromium/src/+/f3363f52a24e8571c9d94339c566e18d3450e633/chrome/app/resources/) at revision `f3363f52a24e8571c9d94339c566e18d3450e633`; upstream attribution and license are included in [`assets/chromium-LICENSE.txt`](./assets/chromium-LICENSE.txt).
+
+**Security limitation:** Chrome's accessibility dialog does not identify the requesting CDP client. Process/endpoint matching narrows the browser being approved, not which pending connection triggered its dialog. Enable this only when you trust other clients on the host and there are no unrelated pending debugging requests. Stale or queued dialogs may need manual dismissal/approval before a fresh attachment; the helper intentionally does not approve a queue.
+
+The helper is bounded by `PW_CDP_TIMEOUT` and stopped on attachment success/failure, cancellation, superseding session operations, plugin disposal, or disabling the option. No environment variable implicitly enables this feature.
+
+### Manual setup and runtime attachment
+
 To use a debugging port, start Chrome with a dedicated user-data directory (Chrome 136+ ignores the remote-debugging-port flag for the default data directory) after fully closing that browser instance:
 
 ```bash
@@ -165,6 +181,9 @@ The skill requires a profile with the skill registry; profiles backed by `dsh-ba
 | Configuration     | [`lib/settings.js`](./lib/settings.js)                 | Resolve environment-backed browser settings and absolute screenshot directory. |
 | Async control     | [`lib/async.js`](./lib/async.js)                       | Handle cancellation races and bounded page round-trips.                        |
 | CDP               | [`lib/cdp.js`](./lib/cdp.js)                           | Resolve attach endpoints and produce connection diagnostics.                   |
+| Configuration UI  | [`lib/client.js`](./lib/client.js)                     | Render the Windows-host-only attachment approval toggle on the plugin page.   |
+| Consent labels    | [`lib/chrome-consent-labels.js`](./lib/chrome-consent-labels.js) | Pair upstream Chrome dialog titles and approval buttons across languages. |
+| Native approval   | [`lib/win-cdp-auto-approve.js`](./lib/win-cdp-auto-approve.js) | Own the bounded, opt-in Windows UI Automation helper.                    |
 | Browser actions   | [`lib/operations.js`](./lib/operations.js)             | Implement page operations against the session.                                 |
 | Public contracts  | [`lib/tool-definitions.js`](./lib/tool-definitions.js) | Register tool schemas, descriptions, and argument handling.                    |
 | Results           | [`lib/results.js`](./lib/results.js)                   | Format successful tool values without translating page-derived content.        |

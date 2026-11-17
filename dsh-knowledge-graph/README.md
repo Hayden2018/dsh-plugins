@@ -1,28 +1,45 @@
 # dsh-knowledge-graph
 
-A profile-local knowledge graph for DeepSeek Harness. Entities, directed
+An installation-wide knowledge graph for DeepSeek Harness. Entities, directed
 relations, and a changelog live in one SQLite database built from Node's
 `node:sqlite`; the graph is held in memory for reads, and SQLite is touched only
-to hydrate at startup, to commit a write, and to read history.
+to hydrate at startup, to commit a write, and to read history. Every profile and
+session of the same harness home shares the graph.
 
 ## Storage
 
 Default location:
 
 ```text
-<profile>/data/dsh-knowledge-graph/graph.sqlite
+<DSH_HOME>/knowledge-graph/graph.sqlite
 ```
 
 Overrides, highest priority first:
 
 1. `dataDir` in this plugin's Config (relative paths resolve against the profile).
 2. `$DSH_KNOWLEDGE_GRAPH_DIR`.
-3. The profile directory above.
-4. `$DSH_HOME/knowledge-graph` when no profile is active.
+3. The harness home above.
 
-The database is shared by every session in the profile. It survives restarts,
-plugin reloads, and plugin removal; only the maintenance panel's
-**Purge graph data** action deletes it.
+The database is shared by every session and every profile of the installation.
+It survives restarts, plugin reloads, and plugin removal; only the maintenance
+panel's **Purge graph data** action deletes it.
+
+When one profile writes, another profile's store reloads before its next read
+(`PRAGMA data_version`). Writes take SQLite's `BEGIN IMMEDIATE` lock before
+planning, so two profiles cannot commit a plan derived from stale state. A
+second writer waits up to the configured `busy_timeout` and then reports
+`storage_busy` rather than overwriting.
+
+### Migration from the profile-local layout
+
+Earlier versions kept `graph.sqlite` under
+`<profile>/data/dsh-knowledge-graph`. On first start at the new location the
+plugin picks the richest non-empty legacy database across the installation,
+copies it with `VACUUM INTO` (including the write-ahead log), validates it, and
+publishes it atomically. The legacy files are renamed with a
+`.migrated-YYYY-MM-DD` suffix instead of deleted. A lock serializes two profiles
+starting at once, and nothing is imported once the shared database exists, so a
+later purge is never undone by a restart.
 
 ## Tables
 
@@ -65,9 +82,9 @@ Types: `fact`, `person`, `item`, `event`, `quote`, `organization`, `place`,
 | `kg_draw_graph` | Tree-like text drawing of a neighborhood, up to 3 hops.                                                     |
 | `kg_trace_node` | One shortest path between two entities.                                                                     |
 
-Reads run entirely in memory. Writes validate and plan first, commit in one
-SQLite transaction, and only then update memory, so a failed write leaves both
-sides unchanged.
+Reads run entirely in memory and reload first when another profile committed.
+Writes validate and plan under SQLite's write lock, commit in one transaction,
+and only then update memory, so a failed write leaves both sides unchanged.
 
 `kg_get` never truncates a stored description; the rendered text is capped only
 by `maxGetChars` (200,000 characters by default), and hitting that cap is
@@ -86,9 +103,10 @@ instead of guessing.
 
 The bundle row's configure page shows the resolved directory, file presence,
 size, entity, relation, and changelog counts, and the schema version. **Purge
-graph data** requires a second click and deletes the database directory; the
-next write recreates it lazily, so purging before uninstalling leaves no files
-behind.
+graph data** requires a second click and deletes the shared database directory
+for every profile; the next write recreates it lazily, so purging before
+uninstalling leaves no files behind. A purge reports `purge_blocked` while
+another profile keeps the database open.
 
 Purge is user-only: it is not exposed as an agent tool.
 

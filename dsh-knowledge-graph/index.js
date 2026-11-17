@@ -1,15 +1,17 @@
 /**
  * Knowledge Graph Host half.
  *
- * Owns one profile-local SQLite graph (`node`, `edge`, and the `history`
- * changelog), keeps it in memory for reads, and registers ten model-facing
- * tools. A small authenticated admin route backs the Web panel's storage
- * status and its explicit purge action.
+ * Owns one installation-wide SQLite graph (`node`, `edge`, and the `history`
+ * changelog) under `<DSH_HOME>/knowledge-graph`, keeps it in memory for reads,
+ * and registers ten model-facing tools. Every profile shares the database; the
+ * store reloads when another profile commits. A small authenticated admin route
+ * backs the Web panel's storage status and its explicit purge action.
  */
 
 import z from '@deepseek-ai/schemastery';
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import { migrateLegacyGraph } from './lib/migrate.js';
 import { GraphStore } from './lib/store.js';
 import { createTools } from './lib/tools.js';
 import { GraphError } from './lib/types.js';
@@ -22,7 +24,8 @@ export const inject = ['tools'];
 export const Config = z.object({
   /**
    * Directory holding `graph.sqlite`. Empty means
-   * `<profile>/data/dsh-knowledge-graph`, or `$DSH_KNOWLEDGE_GRAPH_DIR` when set.
+   * `<DSH_HOME>/knowledge-graph`, shared by every profile, or
+   * `$DSH_KNOWLEDGE_GRAPH_DIR` when set.
    */
   dataDir: z.string().default(''),
   /** Hits returned by `kg_search` when the call omits `limit`. */
@@ -42,23 +45,47 @@ const ADMIN_PATH = '/knowledge-graph/admin';
 const MAX_BODY_BYTES = 8_192;
 
 /**
+ * Resolve the installation-wide harness home.
+ * @param ctx - host plugin context.
+ * @returns an absolute home directory.
+ */
+function resolveHome(ctx) {
+  const homePath = ctx.get('dshHomePath');
+  if (typeof homePath === 'function') {
+    try {
+      const home = homePath();
+      if (typeof home === 'string' && home.length > 0) return home;
+    } catch {
+      // Fall through to the environment/default resolution.
+    }
+  }
+  const configured = (process.env.DSH_HOME ?? '').trim();
+  return configured.length > 0 ? resolve(configured) : join(homedir(), '.dsh');
+}
+
+/**
  * Resolve the directory this plugin owns.
  * @param ctx - host plugin context.
  * @param config - resolved plugin Config.
- * @returns an absolute directory path.
+ * @returns the directory, its source, and the home used for the default.
  */
 function resolveDataDir(ctx, config) {
   const profile = ctx.get('profileContext')?.dir;
   const base = typeof profile === 'string' && profile.length > 0 ? profile : process.cwd();
   const configured = typeof config?.dataDir === 'string' ? config.dataDir.trim() : '';
-  if (configured.length > 0) return isAbsolute(configured) ? configured : resolve(base, configured);
-  const fromEnv = (process.env.DSH_KNOWLEDGE_GRAPH_DIR ?? '').trim();
-  if (fromEnv.length > 0) return isAbsolute(fromEnv) ? fromEnv : resolve(fromEnv);
-  if (typeof profile === 'string' && profile.length > 0) {
-    return join(profile, 'data', 'dsh-knowledge-graph');
+  if (configured.length > 0) {
+    return {
+      dir: isAbsolute(configured) ? configured : resolve(base, configured),
+      source: 'config',
+      home: null,
+    };
   }
-  const home = (process.env.DSH_HOME ?? '').trim() || join(homedir(), '.dsh');
-  return join(home, 'knowledge-graph');
+  const fromEnv = (process.env.DSH_KNOWLEDGE_GRAPH_DIR ?? '').trim();
+  if (fromEnv.length > 0) {
+    return { dir: isAbsolute(fromEnv) ? fromEnv : resolve(fromEnv), source: 'env', home: null };
+  }
+  const home = resolveHome(ctx);
+  return { dir: join(home, 'knowledge-graph'), source: 'default', home };
 }
 
 /**
@@ -208,8 +235,20 @@ export function apply(ctx, config) {
     maxGetChars: limit(config?.maxGetChars, 200_000, 1_000, 400_000),
     maxTraceHops: limit(config?.maxTraceHops, 32, 1, 50),
   };
-  const dataDir = resolveDataDir(ctx, config);
-  const store = new GraphStore({ dataDir, limits });
+  const location = resolveDataDir(ctx, config);
+  if (location.source === 'default') {
+    try {
+      migrateLegacyGraph({
+        dataDir: location.dir,
+        home: location.home,
+        profileDir: ctx.get('profileContext')?.dir,
+        logger: ctx.logger,
+      });
+    } catch (error) {
+      ctx.logger?.warn?.(`knowledge-graph: legacy data migration failed: ${error.message}`);
+    }
+  }
+  const store = new GraphStore({ dataDir: location.dir, limits });
 
   try {
     store.init();

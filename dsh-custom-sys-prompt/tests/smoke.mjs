@@ -47,6 +47,10 @@ const ctx = {
     requestRejection: () => undefined,
   },
   systemPrompt: {
+    variable(name, provider) {
+      variables.set(name, provider);
+      return () => variables.delete(name);
+    },
     async assemble(context) {
       return {
         sections:
@@ -81,6 +85,7 @@ let currentPreset = 'standard';
 let assemblyMode = 'standard';
 let sectionOptions;
 let disposed = false;
+const variables = new Map();
 const agent = {
   id: 'session-smoke',
   session: { header: { agentPreset: 'standard' } },
@@ -103,6 +108,9 @@ if (sectionOptions?.name !== 'prompt-editor:appended') throw new Error('missing 
 if (sectionOptions.order !== 20_000) throw new Error('wrong section order');
 if (sectionOptions.interpolate !== false) throw new Error('user text must be literal');
 if (sectionOptions.text() !== 'Be extra concise.') throw new Error('standard text was not captured');
+if (variables.get('custom_system_prompt')?.({ agent }) !== 'Be extra concise.') {
+  throw new Error('the custom_system_prompt variable was not published for the agent');
+}
 
 currentPreset = 'minimal';
 listeners.get('agent-preset/selected')('session-smoke', 'minimal');

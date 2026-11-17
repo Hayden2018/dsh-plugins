@@ -15,14 +15,30 @@
   "exports": {
     ".": "./lib/index.js",
     "./skill-provider": "./lib/skill-provider.js",
+    "./client": "./lib/client.js",
+    "./locale/*.json": "./assets/locale/*.json",
+    "./icon": "./assets/icon.svg",
+    "./skill-provider/locale/*.json": "./assets/skill-locale/*.json",
+    "./skill-provider/icon": "./assets/icon.svg",
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
     }
   },
   "dependencies": {
+    "@deepseek-ai/schemastery": "3.18.4",
     "playwright-core": "^1.62.1"
   },
   "peerDependencies": {

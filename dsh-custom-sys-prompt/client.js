@@ -1,5 +1,5 @@
 /**
- * Prompt Editor Client half.
+ * Custom System Prompt Client half.
  *
  * A Settings page that previews the selected agent mode's real system-prompt
  * sections (assembled on the Host without creating a Session), then edits the
@@ -13,7 +13,7 @@
  */
 
 window.__ModuleLoader__.load({
-  id: 'dsh-prompt-editor',
+  id: 'dsh-custom-sys-prompt',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -610,13 +610,13 @@ window.__ModuleLoader__.load({
 
     const NS = 'settings.promptEditor';
     const CONFIG_NS = 'prompt-editor';
-    const ROW_CONFIG_KEY = 'dsh-prompt-editor#prompt-editor';
+    const ROW_CONFIG_KEY = 'dsh-custom-sys-prompt#prompt-editor';
     const PREVIEW_URL = '/prompt-editor/preview';
 
     // --- Locale dictionaries -------------------------------------------------
     const en = {
-      nav: 'Prompt Editor',
-      title: 'Prompt Editor',
+      nav: 'Custom System Prompt',
+      title: 'Custom System Prompt',
       description: "Preview each agent mode's system prompt and add instructions for that mode.",
       summary: 'Per-mode system-prompt additions with a read-only preview.',
       mode: 'Agent mode',
@@ -663,8 +663,8 @@ window.__ModuleLoader__.load({
     };
 
     const zh = {
-      nav: '提示词编辑器',
-      title: '提示词编辑器',
+      nav: '自定义系统提示词',
+      title: '自定义系统提示词',
       description: '预览各智能体模式的系统提示词，并为该模式追加指令。',
       summary: '按智能体模式预览系统提示词，并追加该模式的专属指令。',
       mode: '智能体模式',
@@ -1127,16 +1127,17 @@ window.__ModuleLoader__.load({
         setMode(nextMode);
       };
 
-      // The menu shows what a preset is for, matching the host's preset chip.
+      // Compact list: the mode name alone. The preset's description is still
+      // published for the mode chip and the preset cards; repeating it in every
+      // row of this picker only made the list noisy. A broken preset keeps its
+      // diagnostic so the mode stays diagnosable without opening it.
       const modeOptions = modes.map((row) => ({
         value: row.id,
         label: row.name,
         ...(row.isDefault ? { badge: t('defaultBadge') } : {}),
         ...(row.broken !== null && typeof row.broken === 'string'
           ? { description: row.broken }
-          : typeof row.description === 'string' && row.description.length > 0
-            ? { description: row.description }
-            : {}),
+          : {}),
       }));
 
       const nativeModeSelect = () =>
@@ -1308,6 +1309,7 @@ window.__ModuleLoader__.load({
               h('p', { style: styles.hint }, t('editorHint')),
               h('textarea', {
                 id: 'prompt-editor-text',
+                rows: 12,
                 style: styles.textarea,
                 value: draft,
                 placeholder: t('editorPlaceholder'),

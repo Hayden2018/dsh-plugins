@@ -10,12 +10,13 @@ import {
 } from './settings.js';
 import { cdpCandidates, diagnoseEndpoint } from './cdp.js';
 import { throwIfAborted, titleOf, withAbort, withBudget } from './async.js';
+import { startChromeAutoApprove } from './win-cdp-auto-approve.js';
 
 function supersededError() {
   return new Error('Browser setup was superseded by a newer session operation');
 }
 
-export function createBrowserSession() {
+export function createBrowserSession({ autoApprove = () => false, onAutoApproveError = () => {} } = {}) {
   let browser = null;
   let page = null;
   let context = null;
@@ -24,6 +25,34 @@ export function createBrowserSession() {
   let endpointOverride;
   let generation = 0;
   const matchedHints = new WeakMap();
+  const approvalHelpers = new Set();
+
+  function nextGeneration() {
+    for (const stop of approvalHelpers) stop();
+    approvalHelpers.clear();
+    return ++generation;
+  }
+
+  async function connectCandidate(candidate, signal, token) {
+    const stop = startChromeAutoApprove(candidate, {
+      enabled: () => token === generation && autoApprove(),
+      signal,
+      timeoutMs: CONNECT_TIMEOUT_MS,
+      onError: onAutoApproveError,
+    });
+    approvalHelpers.add(stop);
+    try {
+      return await acquire(
+        () => chromium.connectOverCDP(candidate, { timeout: CONNECT_TIMEOUT_MS }),
+        signal,
+        token,
+        closeBrowserBounded
+      );
+    } finally {
+      stop();
+      approvalHelpers.delete(stop);
+    }
+  }
 
   function resolveEndpoint() {
     return (endpointOverride !== undefined ? endpointOverride : CDP_ENDPOINT) || null;
@@ -262,12 +291,7 @@ export function createBrowserSession() {
       assertCurrent(token, signal);
       let localBrowser;
       try {
-        localBrowser = await acquire(
-          () => chromium.connectOverCDP(candidate, { timeout: CONNECT_TIMEOUT_MS }),
-          signal,
-          token,
-          closeBrowserBounded
-        );
+        localBrowser = await connectCandidate(candidate, signal, token);
       } catch (error) {
         assertCurrent(token, signal);
         const { blob, stopRetrying } = await diagnoseEndpoint(candidate, error, signal);
@@ -317,7 +341,7 @@ export function createBrowserSession() {
   async function ensurePage(signal) {
     throwIfAborted(signal);
     if (browser && !browser.isConnected()) {
-      const token = ++generation;
+      const token = nextGeneration();
       const previous = clearState();
       await closeBrowserBounded(previous.browser, signal);
       assertCurrent(token, signal);
@@ -345,13 +369,13 @@ export function createBrowserSession() {
     }
 
     if (browser) {
-      const token = ++generation;
+      const token = nextGeneration();
       const previous = clearState();
       await closeBrowserBounded(previous.browser, signal);
       assertCurrent(token, signal);
     }
 
-    const token = ++generation;
+    const token = nextGeneration();
     const endpoint = resolveEndpoint();
     if (!endpoint) return launchBrowser(signal, token);
     const attachedPage = await attachBrowser(endpoint, undefined, false, signal, token);
@@ -399,7 +423,7 @@ export function createBrowserSession() {
     throwIfAborted(signal);
     const raw = args && args.endpoint !== undefined ? String(args.endpoint).trim() : '';
     if (raw === 'launch' || raw === 'off' || raw === 'local') {
-      const token = ++generation;
+      const token = nextGeneration();
       endpointOverride = null;
       const previous = clearState();
       await closeBrowserBounded(previous.browser, signal);
@@ -413,7 +437,7 @@ export function createBrowserSession() {
     const candidates = cdpCandidates(endpoint);
     const same =
       mode === 'attached' && browser && browser.isConnected() && candidates.includes(attachedEndpoint);
-    const token = ++generation;
+    const token = nextGeneration();
     endpointOverride = endpoint;
 
     if (same) {
@@ -585,7 +609,7 @@ export function createBrowserSession() {
 
   async function disconnect(signal) {
     throwIfAborted(signal);
-    generation++;
+    nextGeneration();
     const previous = clearState();
     await closeBrowserBounded(previous.browser, signal);
     return previous.mode;

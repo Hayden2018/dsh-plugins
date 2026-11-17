@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Playwright browser",
+    "description": "Automate pages or attach to an existing Chrome or Edge browser, reusing its tabs and signed-in sessions."
+  }
+}

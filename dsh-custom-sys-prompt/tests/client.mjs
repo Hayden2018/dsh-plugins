@@ -1,5 +1,5 @@
 /**
- * Client-half checks for the Prompt Editor.
+ * Client-half checks for Custom System Prompt.
  *
  * The Host serves `client.js` as one classic script, so the file must stay
  * self-contained. These checks boot it the way a page does, then drive the
@@ -42,7 +42,7 @@ globalThis.window = {
 await import('../client.js');
 
 if (registration === undefined) throw new Error('client.js did not register a module');
-if (registration.id !== 'dsh-prompt-editor') {
+if (registration.id !== 'dsh-custom-sys-prompt') {
   throw new Error(`unexpected module id: ${registration.id}`);
 }
 if (typeof registration.factory !== 'function') throw new Error('registration has no factory');
@@ -109,9 +109,9 @@ const [locale] = locales;
 if (locale.namespace !== 'settings.promptEditor') {
   throw new Error(`unexpected dictionary namespace: ${locale.namespace}`);
 }
-if (locale.dictionaries.en.nav !== 'Prompt Editor')
+if (locale.dictionaries.en.nav !== 'Custom System Prompt')
   throw new Error('the en dictionary is missing its nav label');
-if (locale.dictionaries.zh.nav !== '提示词编辑器')
+if (locale.dictionaries.zh.nav !== '自定义系统提示词')
   throw new Error('the zh dictionary is missing its nav label');
 if (Object.keys(locale.dictionaries.en).length !== Object.keys(locale.dictionaries.zh).length) {
   throw new Error('the en and zh dictionaries have different keys');
@@ -122,7 +122,7 @@ const [slot] = slots;
 if (slot.definition.name !== 'plugins.row.config') {
   throw new Error(`unexpected slot name: ${slot.definition.name}`);
 }
-if (slot.definition.key !== 'dsh-prompt-editor#prompt-editor') {
+if (slot.definition.key !== 'dsh-custom-sys-prompt#prompt-editor') {
   throw new Error(`unexpected row key: ${slot.definition.key}`);
 }
 if (slot.definition.locale !== 'settings.promptEditor') {

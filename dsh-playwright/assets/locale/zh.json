@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Playwright 浏览器",
+    "description": "自动操作网页或连接已有的 Chrome、Edge 浏览器，复用标签页和已登录的会话。"
+  }
+}

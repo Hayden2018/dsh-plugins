@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "Profile-local SQLite knowledge graph with search, query, traversal, merge, history, and purge controls.",
+  "description": "Installation-wide SQLite knowledge graph with search, query, traversal, merge, history, and purge controls.",
   "engines": {
     "node": ">=22.19.0"
   },

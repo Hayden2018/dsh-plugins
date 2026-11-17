@@ -34,7 +34,7 @@ import {
 const Database = sqlite.DatabaseSync ?? sqlite.Database;
 
 /** Marks this file as a knowledge-graph database, so an unrelated SQLite file is refused. */
-const APPLICATION_ID = 0x4b475250;
+export const APPLICATION_ID = 0x4b475250;
 /** Schema generation stored in `PRAGMA user_version`. */
 export const SCHEMA_VERSION = 2;
 /** Rows one changelog read may scan before filtering. */
@@ -261,6 +261,8 @@ export class GraphStore {
   #db = null;
   /** @type {Error | null} */
   #fault = null;
+  /** `PRAGMA data_version` observed with the current in-memory snapshot. */
+  #dataVersion = null;
   #edgeCount = 0;
   #historyCount = 0;
 
@@ -292,6 +294,7 @@ export class GraphStore {
    */
   init() {
     this.#fault = null;
+    this.#dataVersion = null;
     if (!existsSync(this.dbPath)) return;
     try {
       this.#open();
@@ -308,9 +311,92 @@ export class GraphStore {
     }
   }
 
-  /** Throw the recorded fault, if any. */
+  /** Throw the recorded fault, if any, and catch up with other DSH profiles. */
   assertReady() {
     if (this.#fault !== null) throw this.#fault;
+    this.#refresh();
+  }
+
+  /**
+   * Reload the in-memory graph when another connection committed since the last
+   * read. `data_version` changes only for commits from another connection, so
+   * the common path costs one cheap pragma.
+   */
+  #refresh() {
+    const db = this.#db;
+    if (db === null) return;
+    let version;
+    try {
+      version = readPragma(db, 'data_version');
+    } catch {
+      return;
+    }
+    if (this.#dataVersion === null) {
+      this.#dataVersion = version;
+      return;
+    }
+    if (version === this.#dataVersion) return;
+    this.#loadAll();
+    this.#dataVersion = version;
+  }
+
+  /**
+   * Take SQLite's write lock before planning a mutation, then reload so the plan
+   * validates against every commit from other profiles. Holding the lock through
+   * planning and writing closes the cross-process read-then-write race: a second
+   * writer waits on `busy_timeout`, then plans from the committed state.
+   * @returns the connection holding the transaction.
+   */
+  #beginWrite() {
+    const db = this.#ensureOpen();
+    try {
+      db.exec('BEGIN IMMEDIATE');
+    } catch (error) {
+      throw new GraphError(
+        'storage_busy',
+        `The graph database is busy: ${error.message} Another DSH profile may be writing; retry in a moment.`
+      );
+    }
+    try {
+      this.#refresh();
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // A rollback failure must not mask the original error.
+      }
+      throw error;
+    }
+    return db;
+  }
+
+  /**
+   * Run one planned mutation under the write lock. The planner runs with fresh
+   * state, the plan commits in one transaction, and memory changes only after
+   * the commit succeeds.
+   * @param action - message suffix used when SQL fails.
+   * @param planner - builds the plan and its tool-facing report.
+   * @returns the planner's report.
+   */
+  #mutate(action, planner) {
+    this.assertReady();
+    const db = this.#beginWrite();
+    try {
+      const { plan, result } = planner();
+      if (!planIsEmpty(plan)) this.#writePlan(db, plan, action);
+      db.exec('COMMIT');
+      this.#applyPlan(plan);
+      return result;
+    } catch (error) {
+      try {
+        db.exec('ROLLBACK');
+      } catch {
+        // A rollback failure must not mask the original error.
+      }
+      throw error instanceof GraphError
+        ? error
+        : new GraphError('write_failed', `The graph ${action} was rolled back: ${error.message}`);
+    }
   }
 
   /** Open the database, validate its identity, create or migrate the schema. */
@@ -358,7 +444,11 @@ export class GraphStore {
     this.#db = db;
     this.#fault = null;
     try {
+      // Read the version before loading: a commit that lands between the two
+      // then leaves memory newer than the stamp, which only costs one reload.
+      const version = readPragma(db, 'data_version');
       this.#loadAll();
+      this.#dataVersion = version;
     } catch (error) {
       this.close();
       throw error;
@@ -515,6 +605,7 @@ export class GraphStore {
       this.#db.close();
     } finally {
       this.#db = null;
+      this.#dataVersion = null;
     }
   }
 
@@ -526,20 +617,40 @@ export class GraphStore {
    */
   purge() {
     this.close();
+    if (existsSync(this.dataDir)) {
+      try {
+        rmSync(this.dataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+      } catch (error) {
+        // On Windows another live profile holding the shared file blocks the
+        // delete; restore this store instead of reporting empty data over it.
+        try {
+          this.init();
+        } catch {
+          // init records the fault itself; the purge error stays primary.
+        }
+        throw new GraphError(
+          'purge_blocked',
+          `The graph data could not be deleted: ${error.message} Quit every DSH profile that keeps the graph open, then retry.`
+        );
+      }
+    }
     this.nodes.clear();
     this.outEdges.clear();
     this.inEdges.clear();
     this.#edgeCount = 0;
     this.#historyCount = 0;
     this.#fault = null;
-    if (existsSync(this.dataDir)) {
-      rmSync(this.dataDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    }
+    this.#dataVersion = null;
     return this.status();
   }
 
   /** Storage facts for the maintenance panel. */
   status() {
+    try {
+      this.#refresh();
+    } catch {
+      // A status read must not fail over a cache refresh.
+    }
     let bytes = 0;
     for (const suffix of ['', '-wal', '-shm']) {
       const path = this.dbPath + suffix;
@@ -680,7 +791,19 @@ export class GraphStore {
    * @param context.cwd - directory used for relative attachment paths.
    * @returns a per-operation report.
    */
-  save(input, { sessionId, cwd }) {
+  save(input, context) {
+    return this.#mutate('write', () => this.#planSave(input, context));
+  }
+
+  /**
+   * Build one batch plan against the current state.
+   * @param input - raw argument object from the tool.
+   * @param context - caller facts.
+   * @param context.sessionId - session recorded as the writer.
+   * @param context.cwd - directory used for relative attachment paths.
+   * @returns the plan and its tool-facing report.
+   */
+  #planSave(input, { sessionId, cwd }) {
     this.assertReady();
     const body = asObject(input, 'arguments');
     const nodeSpec = body.nodes === undefined ? {} : asObject(body.nodes, 'nodes');
@@ -902,12 +1025,7 @@ export class GraphStore {
       edgeOps.push({ kind: 'update', record, before: current });
     }
 
-    if (!planIsEmpty(plan)) {
-      this.#persist(plan, 'write');
-      this.#applyPlan(plan);
-    }
-
-    return this.#saveReport(nodeOps, edgeOps);
+    return { plan, result: this.#saveReport(nodeOps, edgeOps) };
   }
 
   /** Build the tool-facing report for one batch. */
@@ -954,15 +1072,13 @@ export class GraphStore {
   }
 
   /**
-   * Execute one planned write in a single transaction. Memory is untouched on
-   * failure, and every changelog row lands in the same transaction as the data
-   * it describes.
+   * Execute one planned write inside the caller's transaction. Every changelog
+   * row lands in the same transaction as the data it describes.
+   * @param db - the connection holding the write transaction.
    * @param plan - planned operations.
    * @param action - message suffix used when SQL fails.
    */
-  #persist(plan, action) {
-    const db = this.#ensureOpen();
-    db.exec('BEGIN IMMEDIATE');
+  #writePlan(db, plan, action) {
     try {
       const upsertNode = db.prepare(
         'INSERT INTO node (id, name, type, tags, description, attachments, created_at, updated_at, created_by_session_id, updated_by_session_id, revision)' +
@@ -1024,13 +1140,7 @@ export class GraphStore {
           row.after
         );
       }
-      db.exec('COMMIT');
     } catch (error) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // A rollback failure must not mask the original error.
-      }
       throw error instanceof GraphError
         ? error
         : new GraphError('write_failed', `The graph ${action} was rolled back: ${error.message}`);
@@ -1054,7 +1164,18 @@ export class GraphStore {
    * @param context.sessionId - session recorded as the writer.
    * @returns the deletion report.
    */
-  remove(input, { sessionId }) {
+  remove(input, context) {
+    return this.#mutate('delete', () => this.#planRemove(input, context));
+  }
+
+  /**
+   * Build one deletion plan against the current state.
+   * @param input - raw argument object.
+   * @param context - caller facts.
+   * @param context.sessionId - session recorded as the writer.
+   * @returns the plan and the deletion report.
+   */
+  #planRemove(input, { sessionId }) {
     this.assertReady();
     const body = asObject(input, 'arguments');
     const cascade = body.cascade_edges === true;
@@ -1149,22 +1270,20 @@ export class GraphStore {
       );
     }
 
-    if (!planIsEmpty(plan)) {
-      this.#persist(plan, 'delete');
-      this.#applyPlan(plan);
-    }
-
     return {
-      ok: true,
-      deleted: {
-        nodes: nodeTargets.map((node) => node.id),
-        edges: plan.edgeDeletes.map((edge) => ({
-          from_id: edge.from_id,
-          relation: edge.relation,
-          to_id: edge.to_id,
-        })),
+      plan,
+      result: {
+        ok: true,
+        deleted: {
+          nodes: nodeTargets.map((node) => node.id),
+          edges: plan.edgeDeletes.map((edge) => ({
+            from_id: edge.from_id,
+            relation: edge.relation,
+            to_id: edge.to_id,
+          })),
+        },
+        counts: { nodes: nodeTargets.length, edges: plan.edgeDeletes.length },
       },
-      counts: { nodes: nodeTargets.length, edges: plan.edgeDeletes.length },
     };
   }
 
@@ -1177,7 +1296,18 @@ export class GraphStore {
    * @param context.sessionId - session recorded as the writer.
    * @returns the merge report.
    */
-  merge(input, { sessionId }) {
+  merge(input, context) {
+    return this.#mutate('merge', () => this.#planMerge(input, context));
+  }
+
+  /**
+   * Build one merge or rename plan against the current state.
+   * @param input - raw argument object.
+   * @param context - caller facts.
+   * @param context.sessionId - session recorded as the writer.
+   * @returns the plan and the merge report.
+   */
+  #planMerge(input, { sessionId }) {
     this.assertReady();
     const body = asObject(input, 'arguments');
     const sourceId = requiredId(body.source_id, 'source_id');
@@ -1381,17 +1511,17 @@ export class GraphStore {
       )
     );
 
-    this.#persist(plan, 'merge');
-    this.#applyPlan(plan);
-
     return {
-      ok: true,
-      mode: renaming ? 'renamed' : 'merged',
-      source_id: sourceId,
-      target_id: targetId,
-      revision: merged.revision,
-      nodes: { removed: 1, written: 1 },
-      edges: { moved: movedCount, combined: combinedCount, dropped: dropped.length },
+      plan,
+      result: {
+        ok: true,
+        mode: renaming ? 'renamed' : 'merged',
+        source_id: sourceId,
+        target_id: targetId,
+        revision: merged.revision,
+        nodes: { removed: 1, written: 1 },
+        edges: { moved: movedCount, combined: combinedCount, dropped: dropped.length },
+      },
     };
   }
 

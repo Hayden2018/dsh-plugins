@@ -194,6 +194,20 @@ function matchesKnownActivePort(endpoint, url) {
   return false;
 }
 
+/** Exact local Chrome browser endpoint eligible for native consent automation. */
+export function chromeApprovalTarget(endpoint) {
+  const url = endpointUrl(endpoint);
+  if (!url || url.protocol !== 'ws:' || !['127.0.0.1', 'localhost', '::1'].includes(endpointHost(url))) {
+    return null;
+  }
+  if (url.username || url.password || url.search || url.hash) return null;
+  const info = readDevToolsActivePort('chrome');
+  if (!info || !/^\/devtools\/browser\/[^/]+$/.test(info.wsPath)) return null;
+  return endpointPort(url) === info.port && url.pathname === info.wsPath
+    ? { port: info.port, host: endpointHost(url) }
+    : null;
+}
+
 /** Returns English diagnostics and whether a proven relevant timeout should stop fallbacks. */
 export async function diagnoseEndpoint(endpoint, error, signal) {
   throwIfAborted(signal);

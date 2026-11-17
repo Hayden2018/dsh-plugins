@@ -1,20 +1,21 @@
 {
-  "name": "dsh-prompt-editor",
-  "version": "0.1.0",
+  "name": "dsh-custom-sys-prompt",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Per-mode system-prompt additions with a settings preview.",
+  "description": "Per-mode system-prompt additions with a settings preview, bundled with the Custom agent mode.",
   "engines": {
     "node": ">=22.19.0"
   },
   "main": "./index.js",
   "scripts": {
-    "check": "node --check client.js && node --check index.js",
+    "check": "node --check client.js && node --check index.js && node --check gate.js && node --check sections.js",
     "test": "node tests/smoke.mjs && node tests/client.mjs"
   },
   "icon": "./icon.svg",
   "exports": {
     ".": "./index.js",
+    "./gate": "./gate.js",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg",
@@ -22,15 +23,21 @@
   },
   "files": [
     "index.js",
+    "gate.js",
+    "sections.js",
     "client.js",
     "cordis.patch.yml",
+    "presets/custom.patch.yml",
     "locale/*.json",
     "icon.svg",
     "README.md"
   ],
   "dsh": {
     "bundle": {
-      "patch": "./cordis.patch.yml"
+      "patch": [
+        "./cordis.patch.yml",
+        "./presets/custom.patch.yml"
+      ]
     },
     "client": {
       "platform": "web",

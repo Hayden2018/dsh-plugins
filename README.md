@@ -14,9 +14,9 @@ A major rewrite of [`whklwhkl/dsh-playwright`](https://github.com/whklwhkl/dsh-p
 
 A profile-local, persistent knowledge graph backed by Node's built-in `node:sqlite` paired with an in-memory graph engine. The graph is hydrated into memory at startup for fast, zero-I/O parallel reads, while writes validate first and commit atomically to SQLite alongside an append-only revision changelog. It models typed entities (such as people, facts, projects, concepts, and documents) connected by directed, labeled edges that allow multiple distinct relationships between the same pair of nodes. Agents get 10 `kg_*` tools for cold-start overviews, ranked search, relational queries, batch creates/updates, entity merging, changelog inspection, ASCII neighborhood trees, and shortest-path tracing, paired with a Web UI panel for storage status and two-step data purge.
 
-### `dsh-prompt-editor`
+### `dsh-custom-sys-prompt`
 
-A Web UI settings panel and Host prompt injector for customizing system prompts per agent mode (preset). It previews any mode's assembled system prompt read-only on the Host without spawning a session, and lets you append custom mode-specific instructions (or sync them across all modes) that are automatically attached to new and resumed sessions.
+A Web UI settings panel and Host prompt injector for customizing system prompts per agent mode (preset). It previews any mode's assembled system prompt read-only on the Host without spawning a session, and lets you append custom mode-specific instructions (or sync them across all modes) that are automatically attached to new and resumed sessions. The bundle also ships the **Custom** agent mode (`custom`): a copy of the shipped Standard composition with no base system prompt. The editor publishes the mode's text as the `custom_system_prompt` prompt variable, and the gate (`dsh-custom-sys-prompt/gate`) renders that resolved text as the only system-prompt section, so the mode follows the live config and composition rather than a creation-time capture. With no editor text the request carries no system prompt, and with text that text is the entire system prompt. `AGENTS.md` and the runtime-context reminder still arrive as user-role messages.
 
 ### `dsh-truncate-session`
 
@@ -37,7 +37,7 @@ Adds an **Archive cleanup** tab to the Plugins page to reclaim disk space from a
 
 ### 1. Prepare Plugin Dependencies
 
-For plugins that declare runtime dependencies (`dsh-playwright`, `dsh-knowledge-graph`, and `dsh-prompt-editor`), install their dependencies inside each plugin directory first:
+For plugins that declare runtime dependencies (`dsh-playwright`, `dsh-knowledge-graph`, and `dsh-custom-sys-prompt`), install their dependencies inside each plugin directory first:
 
 ```bash
 cd dsh-playwright && pnpm install
@@ -60,7 +60,7 @@ Add any plugin directory to your target profile (for example, `web`):
 # Install a plugin into the "web" profile
 dsh plugin --profile web add /path/to/dsh-plugins/dsh-playwright
 dsh plugin --profile web add /path/to/dsh-plugins/dsh-knowledge-graph
-dsh plugin --profile web add /path/to/dsh-plugins/dsh-prompt-editor
+dsh plugin --profile web add /path/to/dsh-plugins/dsh-custom-sys-prompt
 dsh plugin --profile web add /path/to/dsh-plugins/dsh-truncate-session
 dsh plugin --profile web add /path/to/dsh-plugins/dsh-archive-purge
 ```

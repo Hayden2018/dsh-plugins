@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
       summary: 'Local SQLite knowledge graph with search, traversal, and purge controls.',
       title: 'Knowledge graph',
       description:
-        'Entities and relations are stored in one SQLite database inside this profile. Every session in the profile shares it.',
+        'Entities and relations are stored in one SQLite database shared by every profile and session on this installation.',
       refresh: 'Refresh',
       refreshing: 'Refreshing…',
       location: 'Location',
@@ -36,7 +36,7 @@ window.__ModuleLoader__.load({
       fault: 'Storage problem',
       purgeTitle: 'Delete all graph data',
       purgeHint:
-        'This permanently removes every entity, relation, changelog entry, and the database file itself. Referenced attachments are left untouched, and a later write starts a new empty database.',
+        'This permanently removes every entity, relation, changelog entry, and the database file itself for every DSH profile. Referenced attachments are left untouched, and a later write starts a new empty database.',
       purge: 'Purge graph data',
       purgeConfirm: 'Click again to delete permanently',
       purgeCancel: 'Cancel',
@@ -44,13 +44,13 @@ window.__ModuleLoader__.load({
       purged: 'All graph data was deleted. Nothing remains on disk until the next write.',
       purgeFailed: 'Purge failed.',
       sharedNote:
-        'The plugin keeps no backup copy. Removing the plugin after a purge leaves no graph files behind.',
+        'The plugin keeps no backup copy. Removing the plugin after a purge leaves no graph files behind in the harness home.',
     };
 
     const zh = {
       summary: '本地 SQLite 知识图谱，支持搜索、遍历与清除。',
       title: '知识图谱',
-      description: '实体与关系保存在该配置内的同一个 SQLite 数据库中，同一配置下的所有会话共享它。',
+      description: '实体与关系保存在本安装共享的同一个 SQLite 数据库中，所有配置与会话共用。',
       refresh: '刷新',
       refreshing: '刷新中…',
       location: '存储位置',
@@ -66,14 +66,14 @@ window.__ModuleLoader__.load({
       fault: '存储异常',
       purgeTitle: '删除全部图谱数据',
       purgeHint:
-        '将永久删除所有实体、关系、变更记录以及数据库文件本身。被引用的附件不会被删除；之后的写入会重新创建一个空数据库。',
+        '将永久删除所有配置下的全部实体、关系、变更记录以及数据库文件本身。被引用的附件不会被删除；之后的写入会重新创建一个空数据库。',
       purge: '清除图谱数据',
       purgeConfirm: '再次点击以永久删除',
       purgeCancel: '取消',
       purging: '正在清除…',
       purged: '图谱数据已全部删除；在下一次写入前磁盘上不会留下任何文件。',
       purgeFailed: '清除失败。',
-      sharedNote: '该插件不保留任何备份。清除后再卸载插件，不会留下图谱文件。',
+      sharedNote: '该插件不保留任何备份。清除后再卸载插件，不会在 Harness 主目录中留下图谱文件。',
     };
 
     const styles = {

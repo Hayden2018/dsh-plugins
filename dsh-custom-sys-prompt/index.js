@@ -1,5 +1,5 @@
 /**
- * Prompt Editor Host half.
+ * Custom System Prompt Host half.
  *
  * Adds one agent-scoped prompt section per live Agent. The section is captured
  * when the Agent is created (and refreshed when a blank Session switches agent
@@ -9,9 +9,15 @@
  * The preview route assembles a preset's standing scope without creating a
  * Session or Agent, so the settings page can show what that mode really
  * contributes before the user edits anything.
+ *
+ * The plugin also publishes the `custom_system_prompt` prompt variable. The
+ * bundled Custom mode's gate renders that variable as its whole system prompt,
+ * so that mode reads the live composition and config at assembly time instead
+ * of relying on the creation-time section capture.
  */
 
 import z from '@deepseek-ai/schemastery';
+import { SECTION_NAME } from './sections.js';
 
 export const name = 'prompt-editor';
 
@@ -26,7 +32,6 @@ export const Config = z.object({
   prompts: z.dict(z.string()).default({}).volatile(),
 });
 
-const SECTION_NAME = 'prompt-editor:appended';
 const SECTION_ORDER = 20_000;
 const PREVIEW_PATH = '/prompt-editor/preview';
 const MAX_PREVIEW_CHARS = 200_000;
@@ -231,6 +236,15 @@ export function apply(ctx, config) {
     },
     'prompt-editor: prompt sections'
   );
+
+  // Publish the live text for the bundled Custom mode. The provider runs once
+  // per assembly with that assembly's Agent, so the mode reads the composition
+  // and config at request time instead of a creation-time capture. The preset's
+  // gate renders this variable as the whole system prompt.
+  ctx.systemPrompt.variable('custom_system_prompt', (context) => {
+    const agent = context.agent;
+    return agent === undefined ? '' : textFor(config, presetOf(ctx, agent));
+  });
 
   // Preview route: authenticated, read-only, and no Session is created.
   ctx.inject(['webServer', 'connection', 'systemPrompt'], (routeCtx) => {
