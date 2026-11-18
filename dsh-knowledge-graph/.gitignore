@@ -1,2 +1,5 @@
 # Generated Web client bundle. Source lives in src/client/.
 /dist/
+
+# Legacy output from before the move to dist/.
+/client.js

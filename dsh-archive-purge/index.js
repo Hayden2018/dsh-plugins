@@ -14,6 +14,11 @@
  * projection-cache row, removes the id from the archive set, and detaches it
  * from every Workspace that still accounts it. Attachments are
  * content-addressed and shared, so they are intentionally left in place.
+ *
+ * A Session the Host still keeps resident holds its log's write lease, so the
+ * purge runs that Session's agent-loop lifecycle teardown first: the harness
+ * exposes no "unload one Session" call, and archiving only stops work. A
+ * Session with a running turn, or one another writer holds, is still skipped.
  */
 
 import { rm, stat } from 'node:fs/promises';
@@ -129,6 +134,7 @@ function statusOf(classified) {
     missing: classified.missing,
     cutoff: classified.cutoff,
     olderThanDays: OLDER_THAN_DAYS,
+    residentRelease: true,
   };
 }
 
@@ -148,6 +154,85 @@ function planDetach(registry, targets) {
     }
   }
   return plan;
+}
+
+/** Cordis effect label the agent loop puts on one Session's owned teardown. */
+const LIFECYCLE_LABEL_PREFIX = 'agentLoop.lifecycle(';
+const RELEASE_POLL_MS = 25;
+const RELEASE_POLL_TRIES = 120;
+
+/**
+ * The lifecycle label a Cordis effect disposer carries, when it carries one.
+ * `Fiber.getEffects()` reports the same label but not the disposer, and the
+ * disposer is the only callable handle on that teardown.
+ * @param disposer - one registered Cordis effect disposer.
+ * @returns its effect label, or undefined for an unlabeled or other disposable.
+ */
+function effectLabelOf(disposer) {
+  if (typeof disposer !== 'function') return undefined;
+  for (const key of Object.getOwnPropertySymbols(disposer)) {
+    const meta = disposer[key];
+    if (meta !== null && typeof meta === 'object' && typeof meta.label === 'string') {
+      return meta.label;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Run the exact `agentLoop.lifecycle(<id>)` teardown of one resident Agent.
+ *
+ * The harness exposes no "unload one Session" call: the Agent handle that owns
+ * this teardown is dropped by the Session controller when it resumes a Session,
+ * and archiving only stops work. The effect itself stays registered on the
+ * Session controller's fiber, so calling its Cordis disposer performs the same
+ * teardown the Host runs on shutdown — cancel and drain the turn, dispose the
+ * Agent's scope, close the write handle, unregister the Agent and Session.
+ *
+ * Two private Cordis details are read (`fiber._disposables` and the effect
+ * label symbol property). A harness that changes either makes this release a
+ * clean no-op, so the purge falls back to reporting the Session as active.
+ *
+ * @param ctx - the plugin context (registry and logger).
+ * @param id - resident Session to release.
+ * @returns whether the Session left the live store.
+ */
+async function releaseResident(ctx, id) {
+  const agent = ctx.get('agents')?.get(id);
+  // A running turn still owns its log: only an idle Agent may be unloaded.
+  if (agent === undefined || agent.status === 'running') return false;
+  const registry = ctx.registry;
+  if (registry === undefined || typeof registry.values !== 'function') return false;
+  const label = `${LIFECYCLE_LABEL_PREFIX}${id})`;
+  let teardown;
+  for (const runtime of registry.values()) {
+    for (const fiber of runtime.fibers ?? []) {
+      for (const disposer of fiber._disposables ?? []) {
+        if (effectLabelOf(disposer) !== label) continue;
+        teardown = disposer;
+        break;
+      }
+      if (teardown !== undefined) break;
+    }
+    if (teardown !== undefined) break;
+  }
+  if (teardown === undefined) return false;
+  let failure;
+  try {
+    await teardown();
+  } catch (error) {
+    // Teardown collects failures but still runs every cleanup step, so the
+    // Session may have left the store even though the disposer rejected.
+    failure = error;
+  }
+  for (let attempt = 0; attempt < RELEASE_POLL_TRIES; attempt += 1) {
+    if (ctx.get('sessions')?.get(id) === undefined) return true;
+    await new Promise((resolve) => setTimeout(resolve, RELEASE_POLL_MS));
+  }
+  if (failure !== undefined) {
+    ctx.logger?.warn?.(`archive-purge: could not release "${id}": ${messageOf(failure)}`);
+  }
+  return false;
 }
 
 /** Drop the derived projection-cache row; a failure only costs a later replay. */
@@ -185,15 +270,20 @@ async function cleanupRecord(ctx, registry, id, detachPlan) {
 }
 
 /**
- * Delete one target. Live and concurrently written sessions are skipped rather
- * than forced; the write claim is the only cross-process ownership check.
+ * Delete one target. A resident but idle Session is unloaded first, because its
+ * loaded Agent holds the write lease and the log cannot be removed under it; a
+ * running turn and another writer are skipped rather than forced.
  */
 async function purgeOne(ctx, registry, id, entry, detachPlan) {
-  if (ctx.get('sessions')?.get(id) !== undefined) return { id, reason: 'active' };
+  let released = false;
+  if (ctx.get('sessions')?.get(id) !== undefined) {
+    released = await releaseResident(ctx, id);
+    if (!released) return { id, reason: 'active' };
+  }
 
   if (entry === undefined) {
     await cleanupRecord(ctx, registry, id, detachPlan);
-    return { id, reason: 'no-log' };
+    return { id, reason: 'no-log', released };
   }
 
   let handle;
@@ -201,12 +291,12 @@ async function purgeOne(ctx, registry, id, entry, detachPlan) {
     handle = await ctx.sessionPersistence.open(id, 'write');
   } catch (error) {
     const name = error instanceof Error ? error.name : '';
-    if (name === 'SessionAlreadyOwnedError') return { id, reason: 'owned' };
+    if (name === 'SessionAlreadyOwnedError') return { id, reason: 'owned', released };
     if (name === 'SessionPersistenceNotFoundError') {
       await cleanupRecord(ctx, registry, id, detachPlan);
-      return { id, reason: 'no-log' };
+      return { id, reason: 'no-log', released };
     }
-    return { id, reason: 'unreadable', detail: messageOf(error) };
+    return { id, reason: 'unreadable', detail: messageOf(error), released };
   }
   try {
     await handle.close();
@@ -215,17 +305,17 @@ async function purgeOne(ctx, registry, id, entry, detachPlan) {
   }
 
   const dir = dirname(entry.location.path);
-  if (basename(dir) !== id) return { id, reason: 'unsafe-path' };
+  if (basename(dir) !== id) return { id, reason: 'unsafe-path', released };
 
   try {
     await rm(dir, { recursive: true, force: true });
   } catch (error) {
-    return { id, reason: 'delete-failed', detail: messageOf(error) };
+    return { id, reason: 'delete-failed', detail: messageOf(error), released };
   }
 
   await cleanupRecord(ctx, registry, id, detachPlan);
   await removeCacheRow(ctx, id);
-  return { id, reason: undefined, bytes: entry.size };
+  return { id, reason: undefined, bytes: entry.size, released };
 }
 
 /**
@@ -245,6 +335,7 @@ async function runPurge(ctx, scope) {
   const detachPlan = planDetach(ctx.workspaceRegistry, new Set(targets));
   const skipped = [];
   let deleted = 0;
+  let released = 0;
   let bytesFreed = 0;
 
   for (const id of targets) {
@@ -258,6 +349,7 @@ async function runPurge(ctx, scope) {
     if (result.reason === undefined) {
       deleted += 1;
       bytesFreed += result.bytes ?? 0;
+      if (result.released === true) released += 1;
     } else {
       skipped.push({
         id,
@@ -277,6 +369,7 @@ async function runPurge(ctx, scope) {
   return {
     scope,
     deleted,
+    released,
     bytesFreed,
     skipped,
     remaining,

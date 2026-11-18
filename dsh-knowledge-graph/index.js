@@ -4,8 +4,9 @@
  * Owns one installation-wide SQLite graph (`node`, `edge`, and the `history`
  * changelog) under `<DSH_HOME>/knowledge-graph`, keeps it in memory for reads,
  * and registers ten model-facing tools. Every profile shares the database; the
- * store reloads when another profile commits. A small authenticated admin route
- * backs the Web panel's storage status and its explicit purge action.
+ * store reloads when another profile commits. Authenticated Web routes back the
+ * visualization's entity/relation inspectors, plus the storage status and
+ * explicit purge action in the maintenance panel.
  */
 
 import z from '@deepseek-ai/schemastery';
@@ -50,6 +51,8 @@ const ADMIN_PATH = '/knowledge-graph/admin';
 const GRAPH_PATH = '/knowledge-graph/graph';
 /** Path of one entity's full record, read by the visualization's inspector. */
 const NODE_PATH = '/knowledge-graph/node';
+/** Path of one relation's full record and mutation actions. */
+const EDGE_PATH = '/knowledge-graph/edge';
 const MAX_BODY_BYTES = 8_192;
 /** Edge description preview carried by the graph snapshot. */
 const MAX_EDGE_PREVIEW = 600;
@@ -59,8 +62,12 @@ const MAX_NODE_PREVIEW = 40_000;
 const MAX_EDGE_DETAIL = 20_000;
 /** Body bound for one node edit; descriptions are the large field. */
 const NODE_BODY_BYTES = 262_144;
+/** Body bound for one relation mutation; descriptions are the large field. */
+const EDGE_BODY_BYTES = 262_144;
 /** The only fields the Web editor may change. */
 const EDITABLE_NODE_FIELDS = new Set(['name', 'type', 'tags', 'description']);
+/** Relation labels accepted by the Web editor, matching the store's validator. */
+const RELATION_PATTERN = /^[a-z][a-z0-9_:-]{0,63}$/;
 
 /**
  * Resolve the installation-wide harness home.
@@ -145,6 +152,8 @@ function errorStatus(error) {
     case 'invalid_args':
     case 'bad_request':
     case 'confirmation_required':
+    case 'invalid_relation':
+    case 'invalid_type':
       return 400;
     case 'not_found':
       return 404;
@@ -153,6 +162,7 @@ function errorStatus(error) {
     case 'has_edges':
     case 'duplicate_ref':
     case 'unknown_ref':
+    case 'ambiguous_edge':
       return 409;
     case 'storage_busy':
       return 503;
@@ -288,6 +298,34 @@ function nodeSnapshot(store, id) {
 }
 
 /**
+ * Build one relation's full inspector record. The graph snapshot carries only
+ * a description preview and no revision, so the relation editor reads this
+ * endpoint before it can safely update or delete the edge.
+ * @param store - the live graph store.
+ * @param fromId - source entity id.
+ * @param relation - exact relation label.
+ * @param toId - target entity id.
+ * @returns the edge record with endpoint summaries, or undefined.
+ */
+function edgeSnapshot(store, fromId, relation, toId) {
+  store.assertReady();
+  const edge = store.edgeOf(fromId, relation, toId);
+  if (edge === undefined) return undefined;
+  const endpoint = (id) => {
+    const node = store.nodes.get(id);
+    return node === undefined
+      ? { id, name: id, type: 'other' }
+      : { id: node.id, name: node.name, type: node.type };
+  };
+  return {
+    ...edge,
+    description: clip(edge.description, MAX_EDGE_DETAIL),
+    from: endpoint(fromId),
+    to: endpoint(toId),
+  };
+}
+
+/**
  * Serve storage status and the explicit purge action. Purge is deliberately
  * user-only: no agent tool reaches it, and a cross-origin form cannot send the
  * required header plus JSON body.
@@ -366,10 +404,10 @@ function registerAdminRoute(routeCtx, store) {
 }
 
 /**
- * Serve the compact graph snapshot, one entity's inspector record, and the
- * user edit action to the right-Sidebar visualization. Reads are same-origin;
- * the edit requires the same connection check plus a JSON body and the
- * `x-dsh-kg-action: update` header.
+ * Serve the compact graph snapshot, entity and relation inspector records, and
+ * their user edit actions to the right-Sidebar visualization. Reads are
+ * same-origin; mutations require the same connection check plus a JSON body and
+ * an `x-dsh-kg-action` header.
  * @param routeCtx - context carrying `webServer` and `connection`.
  * @param store - the live graph store.
  * @param limits - configured graph caps.
@@ -405,12 +443,16 @@ function registerGraphRoutes(routeCtx, store, limits) {
     }
   };
 
-  /** Apply one user edit to an existing entity. */
-  const updateNode = async (req, res) => {
-    if (req.headers['x-dsh-kg-action'] !== 'update') {
+  /** Create, update, or delete one entity from the Web inspector. */
+  const mutateNode = async (req, res) => {
+    const action = req.headers['x-dsh-kg-action'];
+    if (action !== 'create' && action !== 'update' && action !== 'delete') {
       sendJson(res, 400, {
         ok: false,
-        error: { code: 'bad_request', message: 'Missing the x-dsh-kg-action: update header.' },
+        error: {
+          code: 'bad_request',
+          message: 'Use `x-dsh-kg-action: create`, `update`, or `delete`.',
+        },
       });
       return;
     }
@@ -428,67 +470,97 @@ function registerGraphRoutes(routeCtx, store, limits) {
       });
       return;
     }
-    const id = typeof body.id === 'string' ? body.id.trim() : '';
-    if (id.length === 0) {
-      sendJson(res, 400, {
-        ok: false,
-        error: { code: 'invalid_args', message: '`id` must be a non-empty entity id.' },
-      });
-      return;
-    }
-    const expected = body.expected_revision;
-    if (!Number.isInteger(expected) || expected < 1) {
-      sendJson(res, 400, {
-        ok: false,
-        error: { code: 'invalid_args', message: '`expected_revision` must be a positive integer.' },
-      });
-      return;
-    }
-    const patch = body.patch;
-    if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
-      sendJson(res, 400, {
-        ok: false,
-        error: { code: 'invalid_args', message: '`patch` must be a JSON object.' },
-      });
-      return;
-    }
-    const keys = Object.keys(patch);
-    if (keys.length === 0) {
-      sendJson(res, 400, {
-        ok: false,
-        error: {
-          code: 'invalid_args',
-          message: 'Provide at least one of `name`, `type`, `tags`, or `description`.',
-        },
-      });
-      return;
-    }
-    const unknown = keys.filter((key) => !EDITABLE_NODE_FIELDS.has(key));
-    if (unknown.length > 0) {
-      sendJson(res, 400, {
-        ok: false,
-        error: {
-          code: 'invalid_args',
-          message: `Only name, type, tags, and description may be edited (got ${unknown.join(', ')}).`,
-        },
-      });
-      return;
-    }
     const rawSession = req.headers['x-dsh-kg-session'];
     const sessionId =
       (Array.isArray(rawSession) ? rawSession[0] : rawSession ?? '').trim().slice(0, 200) || 'web-ui';
     try {
+      if (action === 'create') {
+        const unknown = Object.keys(body).filter((key) => !EDITABLE_NODE_FIELDS.has(key));
+        if (unknown.length > 0) {
+          throw new GraphError(
+            'invalid_args',
+            `Only name, type, tags, and description may be set (got ${unknown.join(', ')}).`
+          );
+        }
+        if (body.name === undefined || body.type === undefined) {
+          throw new GraphError('invalid_args', 'A new entity requires `name` and `type`.');
+        }
+        const report = store.save(
+          {
+            nodes: {
+              create: [
+                {
+                  name: body.name,
+                  type: body.type,
+                  tags: body.tags,
+                  description: body.description,
+                },
+              ],
+            },
+          },
+          { sessionId, cwd: process.cwd() }
+        );
+        const id = report.nodes.created[0]?.id;
+        if (id === undefined) {
+          throw new GraphError('write_failed', 'The graph did not report the created entity.');
+        }
+        const node = nodeSnapshot(store, id);
+        if (node === undefined) {
+          throw new GraphError('write_failed', `Entity ${id} was committed but could not be read.`);
+        }
+        sendJson(res, 200, { ok: true, node });
+        return;
+      }
+
+      const id = typeof body.id === 'string' ? body.id.trim() : '';
+      if (id.length === 0) {
+        throw new GraphError('invalid_args', '`id` must be a non-empty entity id.');
+      }
+      const expected = body.expected_revision;
+      if (!Number.isInteger(expected) || expected < 1) {
+        throw new GraphError('invalid_args', '`expected_revision` must be a positive integer.');
+      }
+
+      if (action === 'delete') {
+        if (body.cascade_edges !== undefined && typeof body.cascade_edges !== 'boolean') {
+          throw new GraphError('invalid_args', '`cascade_edges` must be a boolean.');
+        }
+        const report = store.remove(
+          {
+            nodes: [{ id, expected_revision: expected }],
+            cascade_edges: body.cascade_edges === true,
+          },
+          { sessionId }
+        );
+        sendJson(res, 200, { ok: true, deleted: report.deleted });
+        return;
+      }
+
+      const patch = body.patch;
+      if (patch === null || typeof patch !== 'object' || Array.isArray(patch)) {
+        throw new GraphError('invalid_args', '`patch` must be a JSON object.');
+      }
+      const keys = Object.keys(patch);
+      if (keys.length === 0) {
+        throw new GraphError(
+          'invalid_args',
+          'Provide at least one of `name`, `type`, `tags`, or `description`.'
+        );
+      }
+      const unknown = keys.filter((key) => !EDITABLE_NODE_FIELDS.has(key));
+      if (unknown.length > 0) {
+        throw new GraphError(
+          'invalid_args',
+          `Only name, type, tags, and description may be edited (got ${unknown.join(', ')}).`
+        );
+      }
       store.save(
         { nodes: { update: [{ id, expected_revision: expected, ...patch }] } },
         { sessionId, cwd: process.cwd() }
       );
       const node = nodeSnapshot(store, id);
       if (node === undefined) {
-        sendJson(res, 404, {
-          ok: false,
-          error: { code: 'not_found', message: `Entity ${id} does not exist.` },
-        });
-        return;
+        throw new GraphError('not_found', `Entity ${id} does not exist.`);
       }
       sendJson(res, 200, { ok: true, node });
     } catch (error) {
@@ -500,7 +572,7 @@ function registerGraphRoutes(routeCtx, store, limits) {
     const method = req.method ?? 'GET';
     if (!allowed(req, res, method)) return;
     if (method === 'POST') {
-      await updateNode(req, res);
+      await mutateNode(req, res);
       return;
     }
     if (method !== 'GET' && method !== 'HEAD') {
@@ -541,6 +613,229 @@ function registerGraphRoutes(routeCtx, store, limits) {
     }
   };
 
+  /** Read one required trimmed string from a mutation body. */
+  const bodyText = (value, label) => {
+    if (typeof value !== 'string' || value.trim().length === 0) {
+      throw new GraphError('invalid_args', `\`${label}\` must be a non-empty string.`);
+    }
+    return value.trim();
+  };
+
+  /** Read one required relation label, with the store's accepted syntax. */
+  const bodyRelation = (value, label) => {
+    const relation = bodyText(value, label);
+    if (!RELATION_PATTERN.test(relation)) {
+      throw new GraphError(
+        'invalid_relation',
+        '`relation` must be a lowercase snake_case label such as `works_for` (letters, digits, `_`, `:`, `-`).'
+      );
+    }
+    return relation;
+  };
+
+  /** Read one optional string, preserving its whitespace. */
+  const optionalText = (value, label) => {
+    if (value === undefined) return undefined;
+    if (typeof value !== 'string') {
+      throw new GraphError('invalid_args', `\`${label}\` must be a string.`);
+    }
+    return value;
+  };
+
+  /** Read the required optimistic-lock revision. */
+  const bodyRevision = (value) => {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new GraphError('invalid_args', '`expected_revision` must be a positive integer.');
+    }
+    return value;
+  };
+
+  /** Resolve the changelog writer, falling back to the Web UI when no session is passed. */
+  const sessionOf = (req) => {
+    const raw = req.headers['x-dsh-kg-session'];
+    return (Array.isArray(raw) ? raw[0] : raw ?? '').trim().slice(0, 200) || 'web-ui';
+  };
+
+  /** Read one edge's full record for the relation inspector. */
+  const readEdge = async (req, res, method) => {
+    let fromId;
+    let relation;
+    let toId;
+    try {
+      const url = new URL(req.url ?? '/', 'http://localhost');
+      fromId = (url.searchParams.get('from_id') ?? '').trim();
+      relation = (url.searchParams.get('relation') ?? '').trim();
+      toId = (url.searchParams.get('to_id') ?? '').trim();
+    } catch {
+      fromId = '';
+      relation = '';
+      toId = '';
+    }
+    if (fromId.length === 0 || relation.length === 0 || toId.length === 0) {
+      sendJson(
+        res,
+        400,
+        {
+          ok: false,
+          error: {
+            code: 'invalid_args',
+            message: 'Pass `?from_id=<id>&relation=<label>&to_id=<id>`.',
+          },
+        },
+        method === 'HEAD'
+      );
+      return;
+    }
+    try {
+      const edge = edgeSnapshot(store, fromId, relation, toId);
+      if (edge === undefined) {
+        sendJson(
+          res,
+          404,
+          {
+            ok: false,
+            error: {
+              code: 'not_found',
+              message: `Relation ${fromId} —${relation}→ ${toId} does not exist.`,
+            },
+          },
+          method === 'HEAD'
+        );
+        return;
+      }
+      sendJson(res, 200, { ok: true, edge }, method === 'HEAD');
+    } catch (error) {
+      sendJson(res, errorStatus(error), { ok: false, error: errorView(error) }, method === 'HEAD');
+    }
+  };
+
+  /** Create, rename, or delete one relation from the Web inspector. */
+  const mutateEdge = async (req, res) => {
+    const action = req.headers['x-dsh-kg-action'];
+    if (action !== 'create' && action !== 'update' && action !== 'delete') {
+      sendJson(res, 400, {
+        ok: false,
+        error: {
+          code: 'bad_request',
+          message: 'Use `x-dsh-kg-action: create`, `update`, or `delete`.',
+        },
+      });
+      return;
+    }
+    let body;
+    try {
+      body = await readJsonBody(req, EDGE_BODY_BYTES);
+    } catch (error) {
+      sendJson(res, 400, { ok: false, error: errorView(error) });
+      return;
+    }
+    if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+      sendJson(res, 400, {
+        ok: false,
+        error: { code: 'invalid_args', message: 'Request body must be a JSON object.' },
+      });
+      return;
+    }
+    const sessionId = sessionOf(req);
+    try {
+      const fromId = bodyText(body.from_id, 'from_id');
+      const toId = bodyText(body.to_id, 'to_id');
+      const relation = bodyRelation(body.relation, 'relation');
+
+      if (action === 'create') {
+        const description = optionalText(body.description, 'description') ?? '';
+        store.save(
+          { edges: { create: [{ from_id: fromId, to_id: toId, relation, description }] } },
+          { sessionId, cwd: process.cwd() }
+        );
+        const edge = edgeSnapshot(store, fromId, relation, toId);
+        sendJson(res, 200, { ok: true, edge });
+        return;
+      }
+
+      const expected = bodyRevision(body.expected_revision);
+
+      if (action === 'delete') {
+        store.remove(
+          { edges: [{ from_id: fromId, to_id: toId, relation, expected_revision: expected }] },
+          { sessionId }
+        );
+        sendJson(res, 200, {
+          ok: true,
+          deleted: { from_id: fromId, relation, to_id: toId },
+        });
+        return;
+      }
+
+      const hasRelation = Object.prototype.hasOwnProperty.call(body, 'new_relation');
+      const hasDescription = Object.prototype.hasOwnProperty.call(body, 'description');
+      if (!hasRelation && !hasDescription) {
+        throw new GraphError(
+          'invalid_args',
+          'Provide `new_relation`, `description`, or both to update a relation.'
+        );
+      }
+      const newRelation = hasRelation ? bodyRelation(body.new_relation, 'new_relation') : undefined;
+      const description = hasDescription
+        ? optionalText(body.description, 'description')
+        : undefined;
+
+      store.assertReady();
+      const current = store.edgeOf(fromId, relation, toId);
+      if (current === undefined) {
+        throw new GraphError(
+          'not_found',
+          `Relation ${fromId} —${relation}→ ${toId} does not exist; refresh the graph.`
+        );
+      }
+      // UI-only overwrite guard. The model-facing kg_save path deliberately keeps
+      // its existing behavior; this route refuses a rename that would replace a
+      // different relation already stored on the same directed pair. A stale
+      // revision is left to save() so it still reports revision_conflict.
+      if (
+        current.revision === expected &&
+        newRelation !== undefined &&
+        newRelation !== relation &&
+        store.edgeOf(fromId, newRelation, toId) !== undefined
+      ) {
+        throw new GraphError(
+          'already_exists',
+          `Relation ${fromId} —${newRelation}→ ${toId} already exists; choose another label.`
+        );
+      }
+
+      const update = {
+        from_id: fromId,
+        to_id: toId,
+        relation,
+        expected_revision: expected,
+      };
+      if (newRelation !== undefined) update.new_relation = newRelation;
+      if (description !== undefined) update.description = description;
+      store.save({ edges: { update: [update] } }, { sessionId, cwd: process.cwd() });
+
+      const edge = edgeSnapshot(store, fromId, newRelation ?? relation, toId);
+      sendJson(res, 200, { ok: true, edge });
+    } catch (error) {
+      sendJson(res, errorStatus(error), { ok: false, error: errorView(error) });
+    }
+  };
+
+  const edgeHandler = async (req, res) => {
+    const method = req.method ?? 'GET';
+    if (!allowed(req, res, method)) return;
+    if (method === 'POST') {
+      await mutateEdge(req, res);
+      return;
+    }
+    if (method !== 'GET' && method !== 'HEAD') {
+      res.writeHead(405, { allow: 'GET, HEAD, POST' });
+      res.end();
+      return;
+    }
+    await readEdge(req, res, method);
+  };
+
   routeCtx.effect(
     () => routeCtx.webServer.register({ kind: 'exact', path: GRAPH_PATH, handler: graphHandler }),
     'knowledge-graph: graph route'
@@ -548,6 +843,10 @@ function registerGraphRoutes(routeCtx, store, limits) {
   routeCtx.effect(
     () => routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, handler: nodeHandler }),
     'knowledge-graph: node route'
+  );
+  routeCtx.effect(
+    () => routeCtx.webServer.register({ kind: 'exact', path: EDGE_PATH, handler: edgeHandler }),
+    'knowledge-graph: edge route'
   );
 }
 

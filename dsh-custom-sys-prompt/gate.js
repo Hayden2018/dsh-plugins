@@ -1,18 +1,27 @@
 /**
- * Preset-side system-prompt gate for the bundled Custom mode.
+ * Preset-side system-prompt gate for the bundled gated modes (Agent and
+ * Chat).
  *
- * The Custom agent preset mounts this row so its prompt contains exactly what
- * Custom System Prompt supplies for the mode and nothing else. The editor
- * publishes that text as the `custom_system_prompt` prompt variable, resolved
- * per assembly from the Agent's live preset and the plugin's current config;
- * this row reads the resolved value and returns it as the only section.
+ * Each gated preset mounts this row so its prompt contains exactly what Custom
+ * System Prompt supplies for the mode and nothing else. The editor publishes
+ * that text as the `custom_system_prompt` prompt variable, resolved per
+ * assembly from the Agent's live preset and the plugin's current config; this
+ * row reads the resolved value and returns it as the only section.
  *
  * Reading the variable — instead of the editor's per-agent captured section —
- * keeps the mode correct regardless of when the editor attached to the Agent,
- * across profile reloads, and after a preset switch on a blank session.
+ * keeps a mode correct regardless of when the editor attached to the Agent,
+ * across profile reloads, and after a preset switch on a blank session. Because
+ * the variable resolves through the Agent's composed preset, the same row and
+ * the same variable serve every gated mode: Agent renders its entry in
+ * the plugin's `prompts` map and Chat renders its own.
  *
  * The listener is prepended so it sees the final assembly after every other
  * listener has contributed, then drops everything but the editor's text.
+ *
+ * The variable name is written literally here and in `index.js` rather than
+ * imported: a live profile re-imports edited plugin modules individually, so a
+ * new named export shared between them cannot always be re-linked without a
+ * restart. Keep the two literals identical.
  */
 
 import { SECTION_NAME } from './sections.js';

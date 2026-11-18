@@ -2,11 +2,11 @@
  * The right-Sidebar knowledge-graph canvas.
  *
  * Reads the compact snapshot from `/knowledge-graph/graph`, renders it with
- * Cytoscape + fcose, and fetches one entity's full record from
- * `/knowledge-graph/node` only when its inspector opens. Filtering, selection,
- * neighborhood focus and label visibility stay local. The inspector can edit an
- * existing entity's name, type, tags, and description through the guarded node
- * update route; every other field and all graph structure stay read-only.
+ * Cytoscape + fcose, and fetches an entity's or relation's full record only when
+ * its inspector opens. Filtering, selection, neighborhood focus and label
+ * visibility stay local. The inspectors can edit an entity's name, type, tags,
+ * and description, and can create, rename, or delete one relation through the
+ * guarded node and edge routes; every other field stays read-only.
  */
 import React, {
   useCallback,
@@ -21,6 +21,9 @@ import { buildStyle, typeColor, TYPE_ORDER } from './graph-style.js';
 
 const GRAPH_URL = '/knowledge-graph/graph';
 const NODE_URL = '/knowledge-graph/node';
+const EDGE_URL = '/knowledge-graph/edge';
+/** Mirrors the host's relation-label syntax for immediate form feedback. */
+const RELATION_PATTERN = /^[a-z][a-z0-9_:-]{0,63}$/;
 
 /** Stable fallback for a standalone mount without the theme service. */
 const FALLBACK_THEME = { active: { colorScheme: 'light' } };
@@ -40,7 +43,9 @@ async function readJson(url, signal) {
   });
   const data = await response.json().catch(() => undefined);
   if (!response.ok || data?.ok !== true) {
-    throw new Error(data?.error?.message ?? `Request failed (${response.status})`);
+    const error = new Error(data?.error?.message ?? `Request failed (${response.status})`);
+    error.code = data?.error?.code;
+    throw error;
   }
   return data;
 }
@@ -66,6 +71,30 @@ async function postJson(url, body, headers, signal) {
     throw error;
   }
   return data;
+}
+
+/** Headers shared by every Web mutation route. */
+function mutationHeaders(action, sessionId) {
+  const headers = { 'x-dsh-kg-action': action };
+  if (typeof sessionId === 'string' && sessionId.length > 0) {
+    headers['x-dsh-kg-session'] = sessionId;
+  }
+  return headers;
+}
+
+/** Immutable identity of one relation inside a graph snapshot. */
+function edgeIdentity(edge) {
+  return `${edge.source}\u0000${edge.relation}\u0000${edge.target}`;
+}
+
+/** Read one relation's full inspector record. */
+function edgeDetailUrl(edge) {
+  const params = new URLSearchParams({
+    from_id: edge.source,
+    relation: edge.relation,
+    to_id: edge.target,
+  });
+  return `${EDGE_URL}?${params.toString()}`;
 }
 
 /** Short local date for the inspector footer. */
@@ -168,6 +197,24 @@ function EditIcon() {
   );
 }
 
+/** Add-relation glyph. */
+function PlusIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+/** Delete-relation glyph. */
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
+    </svg>
+  );
+}
+
 /** A compact icon-only control. */
 function IconButton({ label, onClick, disabled, active, children }) {
   return (
@@ -191,11 +238,16 @@ function Spinner() {
 }
 
 /** One outgoing or incoming relation inside the inspector. */
-function RelationRow({ edge, t, onSelect }) {
+function RelationRow({ edge, t, onSelectEdge }) {
   const name = edge.neighbor?.name || edge.neighbor?.id || edge.traversal;
   const arrow = edge.traversal === 'forward' ? '→' : '←';
   return (
-    <button type="button" className="kg-relation" onClick={() => onSelect(edge.neighbor.id)} title={name}>
+    <button
+      type="button"
+      className="kg-relation"
+      onClick={() => onSelectEdge(edge.from_id, edge.relation, edge.to_id)}
+      title={name}
+    >
       <span className="kg-relation-top">
         <span className="kg-rel-label">{edge.relation}</span>
         <span className="kg-rel-arrow">{arrow}</span>
@@ -203,6 +255,131 @@ function RelationRow({ edge, t, onSelect }) {
       </span>
       {edge.description ? <span className="kg-rel-desc">{edge.description}</span> : null}
     </button>
+  );
+}
+
+/** One endpoint of the selected relation, clickable like a node relation. */
+function EndpointRow({ role, node, t, onSelect }) {
+  const name = node?.name || node?.id || '';
+  return (
+    <button type="button" className="kg-relation" onClick={() => onSelect(node.id)} title={name}>
+      <span className="kg-relation-top">
+        <span className="kg-dot" style={{ background: typeColor(node?.type) }} />
+        <span className="kg-rel-label">{t(role)}</span>
+        <span className="kg-rel-name">{name}</span>
+      </span>
+      <span className="kg-rel-desc">{node?.type ?? 'other'}</span>
+    </button>
+  );
+}
+
+/** Create one entity. The store generates the stable id. */
+function NodeCreateForm({ t, sessionId, onCancel, onCreated }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('other');
+  const [tags, setTags] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    const nextName = name.trim();
+    if (nextName.length === 0) {
+      setError(t('nameRequired'));
+      return;
+    }
+    const nextTags = Array.from(
+      new Set(
+        tags
+          .split(',')
+          .map((tag) => tag.trim().toLowerCase())
+          .filter((tag) => tag.length > 0)
+      )
+    ).sort();
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await postJson(
+        NODE_URL,
+        { name: nextName, type, tags: nextTags, description },
+        mutationHeaders('create', sessionId)
+      );
+      onCreated(data.node);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="kg-form" onSubmit={submit}>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('name')}</span>
+        <input
+          className="kg-input"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          maxLength={200}
+          autoFocus
+        />
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('type')}</span>
+        <select className="kg-select" value={type} onChange={(event) => setType(event.target.value)}>
+          {TYPE_ORDER.map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('tags')}</span>
+        <input
+          className="kg-input"
+          value={tags}
+          onChange={(event) => setTags(event.target.value)}
+          placeholder={t('tagsHint')}
+        />
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('descriptionLabel')}</span>
+        <textarea
+          className="kg-textarea"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          maxLength={20_000}
+          rows={6}
+        />
+      </label>
+      {error !== null ? <p className="kg-error-line">{error}</p> : null}
+      <div className="kg-form-actions">
+        <button type="button" className="kg-button" onClick={onCancel} disabled={saving}>
+          {t('cancel')}
+        </button>
+        <button type="submit" className="kg-primary" disabled={saving}>
+          {saving ? t('saving') : t('create')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Drawer wrapper for the entity creation form. */
+function NodeCreateDrawer({ t, sessionId, onClose, onCreated }) {
+  return (
+    <aside className="kg-drawer" role="dialog" aria-modal="false" aria-label={t('createEntity')}>
+      <div className="kg-drawer-head">
+        <h3 className="kg-drawer-title">{t('createEntity')}</h3>
+        <IconButton label={t('close')} onClick={onClose}>
+          <CloseIcon />
+        </IconButton>
+      </div>
+      <div className="kg-drawer-body">
+        <NodeCreateForm t={t} sessionId={sessionId} onCancel={onClose} onCreated={onCreated} />
+      </div>
+    </aside>
   );
 }
 
@@ -231,10 +408,7 @@ function NodeEditForm({ node, sessionId, t, onCancel, onSaved }) {
           .filter((tag) => tag.length > 0)
       )
     ).sort();
-    const headers = { 'x-dsh-kg-action': 'update' };
-    if (typeof sessionId === 'string' && sessionId.length > 0) {
-      headers['x-dsh-kg-session'] = sessionId;
-    }
+    const headers = mutationHeaders('update', sessionId);
     setSaving(true);
     setError(null);
     try {
@@ -311,25 +485,295 @@ function NodeEditForm({ node, sessionId, t, onCancel, onSaved }) {
   );
 }
 
+/** Map one entity deletion failure to actionable inspector copy. */
+function nodeDeleteError(cause, t) {
+  switch (cause?.code) {
+    case 'revision_conflict':
+      return t('revisionConflict');
+    case 'has_edges':
+      return t('nodeHasEdges');
+    default:
+      return cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+/** Map one edge mutation failure to actionable inspector copy. */
+function edgeErrorText(cause, t, notFoundKey = 'relationMissing') {
+  switch (cause?.code) {
+    case 'already_exists':
+      return t('relationExists');
+    case 'invalid_relation':
+      return t('relationInvalid');
+    case 'revision_conflict':
+      return t('edgeRevisionConflict');
+    case 'not_found':
+      return t(notFoundKey);
+    default:
+      return cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
+/** Edit one relation's label and description. Endpoints stay fixed. */
+function EdgeEditForm({ edge, siblings, t, sessionId, onCancel, onSaved }) {
+  const [relation, setRelation] = useState(edge.relation);
+  const [description, setDescription] = useState(edge.description ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    const nextRelation = relation.trim();
+    if (!RELATION_PATTERN.test(nextRelation)) {
+      setError(t('relationInvalid'));
+      return;
+    }
+    if (nextRelation !== edge.relation && siblings.some((sibling) => sibling.relation === nextRelation)) {
+      setError(t('relationExists'));
+      return;
+    }
+    const body = {
+      from_id: edge.from_id,
+      to_id: edge.to_id,
+      relation: edge.relation,
+      expected_revision: edge.revision,
+      description,
+    };
+    if (nextRelation !== edge.relation) body.new_relation = nextRelation;
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await postJson(EDGE_URL, body, mutationHeaders('update', sessionId));
+      onSaved(data.edge);
+    } catch (cause) {
+      setError(edgeErrorText(cause, t));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form className="kg-form" onSubmit={submit}>
+      <p className="kg-footnote">
+        {edge.from?.name ?? edge.from_id} → {edge.to?.name ?? edge.to_id}
+      </p>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('relation')}</span>
+        <input
+          className="kg-input"
+          value={relation}
+          onChange={(event) => setRelation(event.target.value)}
+          maxLength={64}
+          spellCheck={false}
+          autoFocus
+        />
+        <span className="kg-field-hint">{t('relationHint')}</span>
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('descriptionLabel')}</span>
+        <textarea
+          className="kg-textarea"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          maxLength={20_000}
+          rows={6}
+        />
+      </label>
+      {error !== null ? <p className="kg-error-line">{error}</p> : null}
+      <div className="kg-form-actions">
+        <button type="button" className="kg-button" onClick={onCancel} disabled={saving}>
+          {t('cancel')}
+        </button>
+        <button type="submit" className="kg-primary" disabled={saving}>
+          {saving ? t('saving') : t('save')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/** Create one outgoing relation from an entity to another graph entity. */
+function EdgeCreateForm({ fromNode, nodes, t, sessionId, onCancel, onCreated }) {
+  const targets = useMemo(
+    () =>
+      nodes
+        .filter((node) => node.id !== fromNode.id)
+        .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id)),
+    [nodes, fromNode.id]
+  );
+  const [toId, setToId] = useState(targets[0]?.id ?? '');
+  const [relation, setRelation] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    if (toId.length === 0) {
+      setError(t('targetRequired'));
+      return;
+    }
+    const nextRelation = relation.trim();
+    if (!RELATION_PATTERN.test(nextRelation)) {
+      setError(t('relationInvalid'));
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await postJson(
+        EDGE_URL,
+        {
+          from_id: fromNode.id,
+          to_id: toId,
+          relation: nextRelation,
+          description,
+        },
+        mutationHeaders('create', sessionId)
+      );
+      onCreated(data.edge);
+    } catch (cause) {
+      setError(edgeErrorText(cause, t, 'entityMissing'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (targets.length === 0) {
+    return (
+      <div className="kg-form">
+        <p className="kg-empty-line">{t('noOtherEntities')}</p>
+        <div className="kg-form-actions">
+          <button type="button" className="kg-button" onClick={onCancel}>
+            {t('close')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form className="kg-form" onSubmit={submit}>
+      <p className="kg-footnote">{fromNode.name}</p>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('target')}</span>
+        <select className="kg-select" value={toId} onChange={(event) => setToId(event.target.value)}>
+          {targets.map((node) => (
+            <option key={node.id} value={node.id}>{node.name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('relation')}</span>
+        <input
+          className="kg-input"
+          value={relation}
+          onChange={(event) => setRelation(event.target.value)}
+          placeholder="works_for"
+          maxLength={64}
+          spellCheck={false}
+          autoFocus
+        />
+        <span className="kg-field-hint">{t('relationHint')}</span>
+      </label>
+      <label className="kg-field">
+        <span className="kg-field-label">{t('descriptionLabel')}</span>
+        <textarea
+          className="kg-textarea"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          maxLength={20_000}
+          rows={5}
+        />
+      </label>
+      {error !== null ? <p className="kg-error-line">{error}</p> : null}
+      <div className="kg-form-actions">
+        <button type="button" className="kg-button" onClick={onCancel} disabled={saving}>
+          {t('cancel')}
+        </button>
+        <button type="submit" className="kg-primary" disabled={saving}>
+          {saving ? t('saving') : t('create')}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 /** The inspector drawer for one entity. */
-function EntityDrawer({ detail, meta, t, sessionId, onClose, onSelectNode, onNodeUpdated }) {
+function EntityDrawer({
+  detail,
+  meta,
+  nodes,
+  t,
+  sessionId,
+  onClose,
+  onSelectEdge,
+  onNodeUpdated,
+  onNodeDeleted,
+  onEdgeChanged,
+}) {
   const node = detail?.node;
   const shown = node ?? meta;
   const color = typeColor(shown?.type ?? 'other');
   const [editing, setEditing] = useState(false);
+  const [creatingRelation, setCreatingRelation] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     setEditing(false);
+    setCreatingRelation(false);
+    setConfirmingDelete(false);
+    setDeleting(false);
+    setDeleteError(null);
   }, [node?.id]);
+
+  const remove = async () => {
+    if (node === undefined || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const data = await postJson(
+        NODE_URL,
+        {
+          id: node.id,
+          expected_revision: node.revision,
+          cascade_edges: node.degree > 0,
+        },
+        mutationHeaders('delete', sessionId)
+      );
+      onNodeDeleted(data.deleted);
+      onClose();
+    } catch (cause) {
+      setDeleteError(nodeDeleteError(cause, t));
+      setConfirmingDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <aside className="kg-drawer" role="dialog" aria-modal="false" aria-label={shown?.name ?? t('entity')}>
       <div className="kg-drawer-head">
         <span className="kg-dot" style={{ background: color }} />
-        <h3 className="kg-drawer-title">{editing ? t('editEntity') : shown?.name ?? t('entity')}</h3>
-        {node !== undefined && !editing ? (
+        <h3 className="kg-drawer-title">
+          {creatingRelation ? t('createRelation') : editing ? t('editEntity') : shown?.name ?? t('entity')}
+        </h3>
+        {node !== undefined && !editing && !creatingRelation && !confirmingDelete ? (
+          <IconButton label={t('addRelation')} onClick={() => setCreatingRelation(true)}>
+            <PlusIcon />
+          </IconButton>
+        ) : null}
+        {node !== undefined && !editing && !creatingRelation && !confirmingDelete ? (
           <IconButton label={t('edit')} onClick={() => setEditing(true)}>
             <EditIcon />
+          </IconButton>
+        ) : null}
+        {node !== undefined && !editing && !creatingRelation && !confirmingDelete ? (
+          <IconButton label={t('deleteEntity')} onClick={() => setConfirmingDelete(true)}>
+            <TrashIcon />
           </IconButton>
         ) : null}
         <IconButton label={t('close')} onClick={onClose}>
@@ -337,7 +781,19 @@ function EntityDrawer({ detail, meta, t, sessionId, onClose, onSelectNode, onNod
         </IconButton>
       </div>
       <div className="kg-drawer-body">
-        {editing && node !== undefined ? (
+        {creatingRelation && node !== undefined ? (
+          <EdgeCreateForm
+            fromNode={node}
+            nodes={nodes}
+            t={t}
+            sessionId={sessionId}
+            onCancel={() => setCreatingRelation(false)}
+            onCreated={() => {
+              setCreatingRelation(false);
+              onEdgeChanged();
+            }}
+          />
+        ) : editing && node !== undefined ? (
           <NodeEditForm
             node={node}
             sessionId={sessionId}
@@ -361,6 +817,33 @@ function EntityDrawer({ detail, meta, t, sessionId, onClose, onSelectNode, onNod
                   <span>{node.degree} {t('relations')}</span>
                   {node.revision ? <span>{t('revision')} {node.revision}</span> : null}
                 </div>
+                {deleteError !== null ? <p className="kg-error-line">{deleteError}</p> : null}
+                {confirmingDelete ? (
+                  <div className="kg-confirm">
+                    <p className="kg-confirm-title">{t('deleteEntityConfirm')}</p>
+                    <p className="kg-footnote">
+                      {node.degree > 0 ? t('deleteEntityWithRelations') : t('deleteEntityHint')}
+                    </p>
+                    <div className="kg-form-actions">
+                      <button
+                        type="button"
+                        className="kg-button"
+                        onClick={() => setConfirmingDelete(false)}
+                        disabled={deleting}
+                      >
+                        {t('cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        className="kg-primary kg-danger-solid"
+                        onClick={remove}
+                        disabled={deleting}
+                      >
+                        {deleting ? t('deleting') : t('deleteEntity')}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 {node.tags.length > 0 ? (
                   <div className="kg-tags">
                     {node.tags.map((tag) => <span key={tag} className="kg-tag">{tag}</span>)}
@@ -377,14 +860,14 @@ function EntityDrawer({ detail, meta, t, sessionId, onClose, onSelectNode, onNod
                 {node.edges.outgoing.length > 0 ? (
                   <div className="kg-relations">
                     {node.edges.outgoing.map((edge) => (
-                      <RelationRow key={`out-${edge.relation}-${edge.to_id}`} edge={edge} t={t} onSelect={onSelectNode} />
+                      <RelationRow key={`out-${edge.relation}-${edge.to_id}`} edge={edge} t={t} onSelectEdge={onSelectEdge} />
                     ))}
                   </div>
                 ) : null}
                 {node.edges.incoming.length > 0 ? (
                   <div className="kg-relations">
                     {node.edges.incoming.map((edge) => (
-                      <RelationRow key={`in-${edge.relation}-${edge.from_id}`} edge={edge} t={t} onSelect={onSelectNode} />
+                      <RelationRow key={`in-${edge.relation}-${edge.from_id}`} edge={edge} t={t} onSelectEdge={onSelectEdge} />
                     ))}
                   </div>
                 ) : null}
@@ -412,33 +895,159 @@ function EntityDrawer({ detail, meta, t, sessionId, onClose, onSelectNode, onNod
 }
 
 /** The inspector drawer for one relation. */
-function EdgeDrawer({ edge, nodeById, t, onClose, onSelectNode }) {
-  const from = nodeById.get(edge.source);
-  const to = nodeById.get(edge.target);
+function EdgeDrawer({ edge, siblings, nodeById, t, sessionId, onClose, onSelectNode, onChanged }) {
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setDetail(null);
+    setLoading(true);
+    setError(null);
+    setEditing(false);
+    setConfirming(false);
+    readJson(edgeDetailUrl(edge), controller.signal)
+      .then((data) => setDetail(data.edge))
+      .catch((cause) => {
+        if (cause?.name !== 'AbortError') setError(edgeErrorText(cause, t));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [edge.source, edge.relation, edge.target, t]);
+
+  const current = detail ?? {
+    from_id: edge.source,
+    to_id: edge.target,
+    relation: edge.relation,
+    description: edge.description,
+    from: nodeById.get(edge.source),
+    to: nodeById.get(edge.target),
+  };
+  const from = current.from ?? nodeById.get(current.from_id);
+  const to = current.to ?? nodeById.get(current.to_id);
+  const fromNode = from ?? { id: current.from_id, name: current.from_id, type: 'other' };
+  const toNode = to ?? { id: current.to_id, name: current.to_id, type: 'other' };
+
+  const remove = async () => {
+    if (deleting || detail === null) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await postJson(
+        EDGE_URL,
+        {
+          from_id: detail.from_id,
+          to_id: detail.to_id,
+          relation: detail.relation,
+          expected_revision: detail.revision,
+        },
+        mutationHeaders('delete', sessionId)
+      );
+      onChanged();
+      onClose();
+    } catch (cause) {
+      setError(edgeErrorText(cause, t));
+      setConfirming(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <aside className="kg-drawer" role="dialog" aria-modal="false" aria-label={edge.relation}>
+    <aside className="kg-drawer" role="dialog" aria-modal="false" aria-label={current.relation}>
       <div className="kg-drawer-head">
         <span className="kg-dot" style={{ background: typeColor(from?.type) }} />
-        <h3 className="kg-drawer-title">{t('relation')}</h3>
+        <h3 className="kg-drawer-title">{editing ? t('editRelation') : t('relation')}</h3>
+        {detail !== null && !editing && !confirming ? (
+          <IconButton label={t('editRelation')} onClick={() => setEditing(true)}>
+            <EditIcon />
+          </IconButton>
+        ) : null}
+        {detail !== null && !editing && !confirming ? (
+          <IconButton label={t('deleteRelation')} onClick={() => setConfirming(true)}>
+            <TrashIcon />
+          </IconButton>
+        ) : null}
         <IconButton label={t('close')} onClick={onClose}>
           <CloseIcon />
         </IconButton>
       </div>
       <div className="kg-drawer-body">
-        <div className="kg-relation-top kg-relation-headline">
-          <button type="button" className="kg-link" onClick={() => onSelectNode(edge.source)}>
-            {from?.name ?? edge.source}
-          </button>
-          <span className="kg-rel-label">{edge.relation}</span>
-          <span className="kg-rel-arrow">→</span>
-          <button type="button" className="kg-link" onClick={() => onSelectNode(edge.target)}>
-            {to?.name ?? edge.target}
-          </button>
-        </div>
-        <p className={edge.description ? 'kg-desc' : 'kg-empty-line'}>
-          {edge.description || t('noDescription')}
-        </p>
-        <p className="kg-footnote">{t('edgeHint')}</p>
+        {editing && detail !== null ? (
+          <EdgeEditForm
+            edge={detail}
+            siblings={siblings}
+            t={t}
+            sessionId={sessionId}
+            onCancel={() => setEditing(false)}
+            onSaved={() => {
+              setEditing(false);
+              onChanged();
+            }}
+          />
+        ) : (
+          <>
+            {loading ? (
+              <p className="kg-loading-line"><Spinner /> {t('loadingRelation')}</p>
+            ) : null}
+            {error !== null ? <p className="kg-error-line">{error}</p> : null}
+            <div className="kg-relation-top kg-relation-headline">
+              <button type="button" className="kg-link" onClick={() => onSelectNode(current.from_id)}>
+                {from?.name ?? current.from_id}
+              </button>
+              <span className="kg-rel-label">{current.relation}</span>
+              <span className="kg-rel-arrow">→</span>
+              <button type="button" className="kg-link" onClick={() => onSelectNode(current.to_id)}>
+                {to?.name ?? current.to_id}
+              </button>
+            </div>
+            <p className={current.description ? 'kg-desc' : 'kg-empty-line'}>
+              {current.description || t('noDescription')}
+            </p>
+            {detail !== null ? (
+              <div className="kg-meta">
+                {detail.revision ? <span>{t('revision')} {detail.revision}</span> : null}
+                {detail.updated_at ? <span>{t('updated')} {formatDate(detail.updated_at)}</span> : null}
+              </div>
+            ) : null}
+            <h4 className="kg-section-title">{t('connectedEntities')}</h4>
+            <div className="kg-relations">
+              <EndpointRow role="sourceNode" node={fromNode} t={t} onSelect={onSelectNode} />
+              <EndpointRow role="targetNode" node={toNode} t={t} onSelect={onSelectNode} />
+            </div>
+            <p className="kg-footnote">{t('edgeHint')}</p>
+            {confirming ? (
+              <div className="kg-confirm">
+                <p className="kg-confirm-title">{t('deleteRelationConfirm')}</p>
+                <p className="kg-footnote">{t('deleteRelationHint')}</p>
+                <div className="kg-form-actions">
+                  <button
+                    type="button"
+                    className="kg-button"
+                    onClick={() => setConfirming(false)}
+                    disabled={deleting}
+                  >
+                    {t('cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    className="kg-primary kg-danger-solid"
+                    onClick={remove}
+                    disabled={deleting}
+                  >
+                    {deleting ? t('deleting') : t('deleteRelation')}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </aside>
   );
@@ -486,6 +1095,7 @@ const CSS = `
 .kg-tags{display:flex;flex-wrap:wrap;gap:4px}
 .kg-tag{padding:2px 6px;border-radius:5px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-size:10px}
 .kg-section-title{margin:2px 0 0;font-size:10px;font-weight:600;color:var(--dsw-alias-label-secondary);text-transform:uppercase;letter-spacing:.06em}
+.kg-field-hint{font-size:10px;color:var(--dsw-alias-label-secondary);line-height:1.4}
 .kg-desc{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;line-height:1.55}
 .kg-empty-line{margin:0;color:var(--dsw-alias-label-secondary);font-style:italic;font-size:11px}
 .kg-relations{display:flex;flex-direction:column;gap:4px}
@@ -508,6 +1118,10 @@ const CSS = `
 .kg-form-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:2px}
 .kg-primary{height:26px;padding:0 12px;border:1px solid var(--dsw-alias-brand-primary);border-radius:6px;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-base);font:inherit;font-size:12px;font-weight:600;cursor:pointer}
 .kg-primary:disabled,.kg-button:disabled{opacity:.5;cursor:default}
+.kg-danger-solid{background:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-bg-base)}
+.kg-confirm{display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-error-primary) 35%,var(--dsw-alias-border-l1));border-radius:7px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 7%,var(--dsw-alias-bg-layer-1))}
+.kg-confirm p{margin:0}
+.kg-confirm-title{font-size:12px;font-weight:600}
 .kg-error-line{margin:0;color:var(--dsw-alias-state-error-primary);font-size:11px}
 .kg-footnote{margin:2px 0 0;color:var(--dsw-alias-label-secondary);font-size:10px}
 .kg-link{padding:0;border:0;background:none;color:var(--dsw-alias-brand-primary);font:inherit;text-align:left;cursor:pointer;overflow-wrap:anywhere}
@@ -551,6 +1165,7 @@ export function GraphPanel({ t, theme, sessionId }) {
   const [focusMode, setFocusMode] = useState(false);
   const [selected, setSelected] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [creatingNode, setCreatingNode] = useState(false);
 
   const containerRef = useRef(null);
   const cyRef = useRef(null);
@@ -820,7 +1435,9 @@ export function GraphPanel({ t, theme, sessionId }) {
     [graph]
   );
   const selectedEdge = useMemo(() => {
-    if (selected?.kind !== 'edge' || graph === null) return null;
+    if (selected?.kind !== 'edge') return null;
+    if (selected.edge !== undefined) return selected.edge;
+    if (graph === null) return null;
     return graph.edges.find((edge) => edge.id === selected.id) ?? null;
   }, [selected, graph]);
 
@@ -846,6 +1463,33 @@ export function GraphPanel({ t, theme, sessionId }) {
   }, []);
 
   const selectNode = useCallback((id) => setSelected({ kind: 'node', id }), []);
+
+  const selectEdge = useCallback(
+    (fromId, relation, toId) => {
+      const edge = graph?.edges.find(
+        (candidate) =>
+          candidate.source === fromId &&
+          candidate.relation === relation &&
+          candidate.target === toId
+      );
+      if (edge !== undefined) {
+        setSelected({ kind: 'edge', id: edge.id });
+        return;
+      }
+      // The edge can be outside a capped snapshot. Keep the edge inspector
+      // usable by carrying the immutable triple until its detail is fetched.
+      setSelected({
+        kind: 'edge',
+        id: `virtual:${fromId}:${relation}:${toId}`,
+        edge: { source: fromId, relation, target: toId, description: '' },
+      });
+    },
+    [graph]
+  );
+
+  const refreshGraph = useCallback(() => {
+    setReloadKey((key) => key + 1);
+  }, []);
 
   const onNodeUpdated = useCallback((updated) => {
     detailCacheRef.current.set(updated.id, updated);
@@ -887,6 +1531,15 @@ export function GraphPanel({ t, theme, sessionId }) {
             {graph === null ? '' : `${graph.nodes.length} · ${graph.edges.length}`}
           </span>
           <span className="kg-heading-spacer" />
+          <IconButton
+            label={t('addEntity')}
+            onClick={() => {
+              setSelected(null);
+              setCreatingNode(true);
+            }}
+          >
+            <PlusIcon />
+          </IconButton>
           <IconButton label={t('refresh')} onClick={() => setReloadKey((key) => key + 1)} disabled={loading}>
             <RefreshIcon />
           </IconButton>
@@ -957,28 +1610,58 @@ export function GraphPanel({ t, theme, sessionId }) {
           </IconButton>
         </div>
 
-        {selected !== null ? (
-          <div className="kg-drawer-scrim" onClick={() => setSelected(null)} aria-hidden="true" />
+        {selected !== null || creatingNode ? (
+          <div
+            className="kg-drawer-scrim"
+            onClick={() => {
+              setSelected(null);
+              setCreatingNode(false);
+            }}
+            aria-hidden="true"
+          />
+        ) : null}
+        {creatingNode ? (
+          <NodeCreateDrawer
+            t={t}
+            sessionId={sessionId}
+            onClose={() => setCreatingNode(false)}
+            onCreated={() => {
+              setCreatingNode(false);
+              refreshGraph();
+            }}
+          />
         ) : null}
         {selected?.kind === 'node' ? (
           <EntityDrawer
             key={selected.id}
             detail={detail}
             meta={nodeById.get(selected.id)}
+            nodes={graph?.nodes ?? []}
             t={t}
             sessionId={sessionId}
             onClose={() => setSelected(null)}
-            onSelectNode={selectNode}
+            onSelectEdge={selectEdge}
             onNodeUpdated={onNodeUpdated}
+            onNodeDeleted={refreshGraph}
+            onEdgeChanged={refreshGraph}
           />
         ) : null}
         {selected?.kind === 'edge' && selectedEdge !== null ? (
           <EdgeDrawer
+            key={edgeIdentity(selectedEdge)}
             edge={selectedEdge}
+            siblings={(graph?.edges ?? []).filter(
+              (candidate) =>
+                candidate.source === selectedEdge.source &&
+                candidate.target === selectedEdge.target &&
+                candidate.id !== selectedEdge.id
+            )}
             nodeById={nodeById}
             t={t}
+            sessionId={sessionId}
             onClose={() => setSelected(null)}
             onSelectNode={selectNode}
+            onChanged={refreshGraph}
           />
         ) : null}
       </div>

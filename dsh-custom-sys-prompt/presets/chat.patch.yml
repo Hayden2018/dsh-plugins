@@ -1,0 +1,73 @@
+# Agent preset chat, shipped with Custom System Prompt: a chat mode for web
+# research and knowledge-graph recall with no filesystem, shell, or delegation
+# tools. Like `custom`, the mode's whole system prompt is the text the editor
+# stores for it — the gate row renders the `custom_system_prompt` variable,
+# resolved per assembly from the Agent's live preset, and drops the harness
+# identity, tool guidance, plan policy, and file-reference guidance.
+#
+# The tool list is deliberate:
+#   - tool-web mounts `web_search` and `web_fetch` in this preset's scope.
+#   - `kg_*` tools come from the installation-wide Knowledge Graph bundle when
+#     it is installed; the mode keeps them by prefix and ignores their absence.
+#   - chat-tools keeps only those families. It denies every other global tool
+#     (working directory, agent team, browser, session search, …) and also
+#     installs a filtered native executor, because a Host plugin can register a
+#     tool in the Agent's own scope — the CUA provider's `cua_run_code` does —
+#     and such a tool is exempt from every preset-level restriction. A
+#     pre-execute guard refuses any call outside the allowlist.
+#
+# There is no plan mode, no goal/subagent/workflow, no todo, no present, no
+# skill, no office, and no filesystem/shell/job/schedule tool. Persona,
+# AGENTS.md instructions, time context, and compaction stay as non-tool context,
+# exactly as in the Agent mode.
+#
+# The declaration is disabled in compositions without the agent-preset
+# registry, so installing this bundle elsewhere cannot leave a row waiting for
+# a service that profile does not mount.
+- insert:
+    - id: preset-chat-mode
+      name: '@deepseek-ai/dsh-agent-preset'
+      disabled: !!js "!ctx.get('agentPresets')"
+      config:
+        id: chat
+        name: Chat
+        description: 'Web search, web fetch and knowledge-graph tools only; only text you add in Custom System Prompt becomes the system prompt.'
+        order: 1.6
+        plugins:
+          - id: prompt-gate
+            name: 'dsh-custom-sys-prompt/gate'
+          - id: chat-tool-filter
+            name: 'dsh-custom-sys-prompt/chat-tools'
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: ''
+          - id: agent-instructions
+            name: '@deepseek-ai/dsh-agent-instructions'
+            config:
+              maxBytes: 65536
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              search: true
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+              toolResultPruner: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'
+              - id: tool-result-pruner
+                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+                config:
+                  thresholdChars: 8192
+                  headChars: 4096
+                  tailChars: 1024

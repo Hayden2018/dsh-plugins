@@ -11,13 +11,22 @@
  * contributes before the user edits anything.
  *
  * The plugin also publishes the `custom_system_prompt` prompt variable. The
- * bundled Custom mode's gate renders that variable as its whole system prompt,
- * so that mode reads the live composition and config at assembly time instead
- * of relying on the creation-time section capture.
+ * bundled modes' gates render that variable as their whole system prompt, so a
+ * gated mode reads the live composition and config at assembly time instead of
+ * relying on the creation-time section capture. Agent and Chat both use
+ * it, each resolving its own per-preset entry.
+ *
+ * The variable name is written literally here and in `gate.js` rather than
+ * imported: a live profile re-imports edited plugin modules individually, so a
+ * new named export shared between them cannot always be re-linked without a
+ * restart. Keep the two literals identical.
  */
 
 import z from '@deepseek-ai/schemastery';
 import { SECTION_NAME } from './sections.js';
+
+/** Prompt variable name shared with `gate.js`. */
+const PROMPT_VARIABLE = 'custom_system_prompt';
 
 export const name = 'prompt-editor';
 
@@ -237,11 +246,11 @@ export function apply(ctx, config) {
     'prompt-editor: prompt sections'
   );
 
-  // Publish the live text for the bundled Custom mode. The provider runs once
-  // per assembly with that assembly's Agent, so the mode reads the composition
+  // Publish the live text for the bundled gated modes. The provider runs once
+  // per assembly with that assembly's Agent, so a mode reads the composition
   // and config at request time instead of a creation-time capture. The preset's
   // gate renders this variable as the whole system prompt.
-  ctx.systemPrompt.variable('custom_system_prompt', (context) => {
+  ctx.systemPrompt.variable(PROMPT_VARIABLE, (context) => {
     const agent = context.agent;
     return agent === undefined ? '' : textFor(config, presetOf(ctx, agent));
   });

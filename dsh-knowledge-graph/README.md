@@ -105,28 +105,50 @@ The Web client registers a `knowledge-graph` page in the right Sidebar. Open it
 from the Sidebar's add control and pick the **Knowledge graph** guide card (or
 `ctx.sidebarRight.openTab('knowledge-graph')` from another client plugin).
 
-The page is read-only except for the inspector's entity edit. It uses three
-same-origin routes, all guarded by the same connection check as the maintenance
-route:
+The page is read-only outside its inspector editors. It uses five same-origin
+routes, all guarded by the same connection check as the maintenance route:
 
 | Route | Purpose |
 | --- | --- |
 | `GET /knowledge-graph/graph` | Compact snapshot: nodes with type, tags and degree, plus relation previews. |
 | `GET /knowledge-graph/node?id=<id>` | One entity's full record: description, tags, attachments, both edge directions, degree. |
-| `POST /knowledge-graph/node` | Update one entity's `name`, `type`, `tags`, and `description`. |
+| `POST /knowledge-graph/node` | Create, update, or delete one entity. |
+| `GET /knowledge-graph/edge?from_id=<id>&relation=<label>&to_id=<id>` | One relation's full description, timestamps, revision, and endpoint summaries. |
+| `POST /knowledge-graph/edge` | Create, rename, or delete one relation. |
 
-The edit route requires `x-dsh-kg-action: update`, a JSON body of
-`{ "id": "...", "expected_revision": 10, "patch": { ... } }`, and optionally
-`x-dsh-kg-session: <session id>` for the changelog's writer. Only the four
-editable fields are accepted; any other patch key is rejected. The write goes
-through the same `GraphStore.save` path as `kg_save`, so it keeps the revision,
-optimistic-lock, atomic-commit, and changelog behavior. A stale revision returns
-`409 revision_conflict`; the inspector tells the user to reopen the entity.
+The node route dispatches on `x-dsh-kg-action`:
+
+- `create` takes `{ "name": "...", "type": "...", "tags": [...], "description": "..." }`
+  and lets the store generate the stable id.
+- `update` takes `{ "id": "...", "expected_revision": 10, "patch": { ... } }`.
+  Only `name`, `type`, `tags`, and `description` may appear in the patch.
+- `delete` takes `{ "id": "...", "expected_revision": 10 }` and optionally
+  `cascade_edges: true`. Without cascade, an entity with relations is refused
+  with `409 has_edges`; with cascade, those relations are removed too while
+  neighbouring entities stay.
+
+All three `x-dsh-kg-session` headers are optional and feed the changelog writer.
+The writes go through the same `GraphStore.save`/`remove` paths as the agent
+tools, so revision checks, atomic commits, and changelog behavior are preserved.
+A stale revision returns `409 revision_conflict`.
+
+The edge mutation route dispatches on `x-dsh-kg-action`:
+
+- `create` takes `{ "from_id": "...", "to_id": "...", "relation": "...", "description": "..." }`.
+- `update` takes the original `from_id`, `relation`, and `to_id`, plus
+  `expected_revision`, and optionally `new_relation` and/or `description`.
+- `delete` takes the exact triple plus `expected_revision`.
+
+The Web route refuses a rename that would land on another relation already
+stored on the same directed pair, returning `409 already_exists` before writing.
+That guard is deliberately Web-only; the model-facing `kg_save` behavior is
+unchanged. All successful edge mutations go through the store's normal atomic
+commit and changelog path.
 
 The snapshot never carries full node descriptions, and edge descriptions are
-clipped to a 600-character preview. The inspector fetches the selected entity
-only (its description is clipped at 40,000 characters), then caches it for the
-life of the panel; relation descriptions there are clipped at 20,000 characters.
+clipped to a 600-character preview. The inspector fetches the selected entity or
+relation (descriptions are clipped at 40,000 and 20,000 characters respectively),
+then caches entities for the life of the panel.
 
 ### What the canvas does
 
@@ -139,13 +161,29 @@ life of the panel; relation descriptions there are clipped at 20,000 characters.
   edges. **Type chips** at the bottom toggle whole types on and off; **All**
   restores every type.
 - **Click a node** to open the inspector: type, tags, full description,
-  attachments, revision, update date, and clickable incoming/outgoing relations.
-  Relation rows navigate to the neighbour.
+  attachments, revision, update date, and incoming/outgoing relations. Clicking
+  a relation row opens that relation's inspector and highlights the relation on
+  the canvas.
+- **Create an entity** with the plus in the panel header. Enter name, type,
+  optional tags, and optional description; the store generates the id.
 - **Edit a node** with the pencil in the inspector. `name`, `type`, `tags`, and
   `description` are editable; id, relations, attachments, revisions, and
   timestamps are not. Saving sends the node's current revision, so a concurrent
   edit fails visibly instead of overwriting it.
-- **Click an edge** to inspect `source — relation → target` and its description.
+- **Delete a node** with the trash in the inspector. The confirmation warns when
+  the entity has relations; confirming removes the entity and those relations
+  together, while neighbouring entities remain.
+- **Add a relation** with the plus in an entity inspector. The source is fixed;
+  choose any other entity in the current snapshot, then enter a relation label
+  and optional description. This creates one outgoing relation.
+- **Click an edge** to inspect `source — relation → target` and its full
+  description. The pencil edits the relation label and description; the trash
+  deletes the relation after confirmation. Endpoints and direction stay fixed.
+  Delete removes only the relation, never either entity. The two connected
+  entities are listed at the bottom; clicking one opens that entity's inspector.
+- **Relation edits are guarded.** Renaming onto an existing relation on the same
+  directed pair is refused instead of overwriting it, and every edit/delete
+  sends the relation's current revision.
 - **Focus neighborhood** hides everything outside the selected node's one-hop
   closed neighborhood and fits it. **Labels** toggles node and relation text.
 - **Fit**, **Re-run layout**, and **Refresh** are in the floating canvas

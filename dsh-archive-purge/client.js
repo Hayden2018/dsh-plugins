@@ -36,7 +36,7 @@ window.__ModuleLoader__.load({
         '{count} archived ids have no log left on disk; purging all also clears their archive records.',
       purgeAllTitle: 'Purge every archived session',
       purgeAllHint:
-        'Deletes all {count} archived session logs ({size}). Sessions that are in use are skipped.',
+        'Deletes all {count} archived session logs ({size}). Still-loaded sessions are unloaded first; sessions with a running turn are skipped.',
       purgeAll: 'Purge all archived sessions',
       confirmAll: 'Click again to delete {count} sessions permanently',
       olderTitle: 'Purge sessions inactive for {days}+ days',
@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       retry: 'Retry',
       purgeFailed: 'Purge failed.',
       deleted: 'Deleted {count} session logs, freeing {size}.',
+      released: 'Unloaded {count} still-loaded session(s) first.',
       skipped: 'Skipped {count}: {reasons}.',
       reasonActive: 'in use',
       reasonOwned: 'being written',
@@ -78,7 +79,8 @@ window.__ModuleLoader__.load({
       staleHint: '最后一次日志写入早于 {date}。',
       missingHint: '有 {count} 个归档 id 已无日志文件；“清除全部”会同时清理这些归档记录。',
       purgeAllTitle: '清除全部已归档会话',
-      purgeAllHint: '删除全部 {count} 个已归档会话日志（{size}）。正在使用中的会话会被跳过。',
+      purgeAllHint:
+        '删除全部 {count} 个已归档会话日志（{size}）。仍被加载的会话会先被卸载；正在运行的会话会被跳过。',
       purgeAll: '清除全部已归档会话',
       confirmAll: '再次点击以永久删除 {count} 个会话',
       olderTitle: '清除 {days} 天以上无活动的会话',
@@ -92,6 +94,7 @@ window.__ModuleLoader__.load({
       retry: '重试',
       purgeFailed: '清除失败。',
       deleted: '已删除 {count} 个会话日志，释放 {size}。',
+      released: '已先卸载 {count} 个仍被加载的会话。',
       skipped: '跳过 {count} 个：{reasons}。',
       reasonActive: '使用中',
       reasonOwned: '正在写入',
@@ -525,6 +528,7 @@ window.__ModuleLoader__.load({
                   size: formatBytes(result.bytesFreed),
                 })
               ),
+              result.released > 0 ? h('p', null, t('released', { count: result.released })) : null,
               result.skipped.length > 0
                 ? h(
                     'p',

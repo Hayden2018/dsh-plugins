@@ -23,7 +23,9 @@ ago"; the page states this next to the number and shows the exact cutoff time.
 Both actions require a second click on the same button; the armed label names
 the number of sessions that will be deleted. A purge, per session:
 
-1. skips it when it is live or another writer holds it;
+1. unloads it when the Host still has it resident but idle (a loaded Agent holds
+   the log's write lease, so its log cannot be removed until it is unloaded);
+   skips it when a turn is running or another writer holds the lease;
 2. claims the write handle, closes it, then removes the session's artifact
    directory;
 3. drops the derived projection-cache row;
@@ -38,6 +40,12 @@ agent tool reaches it.
 
 - Session logs must expose a filesystem `location` (the shipped JSONL backend
   does); other backends are reported as missing rather than guessed at.
+- Unloading a resident session has no public Host API. It runs the
+  `agentLoop.lifecycle(<id>)` Cordis effect disposer found on its owning fiber,
+  which is the same teardown the Host performs on shutdown. Two private Cordis
+  fields are read (`Fiber._disposables` and the effect-label symbol); if an
+  upgrade changes them the release becomes a no-op and the session is reported
+  as in use, so a restart of DSH is still the fallback.
 - Attachments are content-addressed and shared, so they are not reclaimed.
 - The session store is `DSH_HOME`-wide, so a purge affects every profile of the
   same installation.

@@ -1,11 +1,15 @@
-# Agent preset custom, shipped with Custom System Prompt: the standard
-# composition with no base system prompt. The editor publishes the mode's text
-# as the `custom_system_prompt` prompt variable, and the gate row renders that
-# resolved text as the only system-prompt section — so the model receives only
-# what Custom System Prompt supplies for this mode, not the harness identity,
-# tool guidance, plan policy, or file-reference guidance. With no editor text
-# the prompt stays empty. Tools, skills, runtime context, and compaction stay
-# exactly as in `standard`.
+# Agent preset custom, shipped with Custom System Prompt as "Agent": the
+# standard composition with no base system prompt. The editor publishes the
+# mode's text as the `custom_system_prompt` prompt variable, and the gate row
+# renders that resolved text as the only system-prompt section — so the model
+# receives only what Custom System Prompt supplies for this mode, not the
+# harness identity, tool guidance, plan policy, or file-reference guidance.
+# With no editor text the prompt stays empty. Tools, skills, runtime context,
+# and compaction stay exactly as in `standard`.
+#
+# The preset id stays `custom` (the display name is what changed) so sessions,
+# the editor's saved `prompts.custom` entry, and the profile's selected default
+# keep working.
 #
 # A `complete` persona is deliberately NOT used here: a complete section is
 # restored after the assemble waterfall and would erase the editor's addition.
@@ -19,8 +23,8 @@
       disabled: !!js "!ctx.get('agentPresets')"
       config:
         id: custom
-        name: Custom
-        description: Standard tools and runtime; only the text you add in Custom System Prompt becomes the system prompt.
+        name: Agent
+        description: Standard tools and runtime; only text you add in Custom System Prompt becomes the system prompt.
         order: 1.5
         plugins:
           - id: prompt-gate
