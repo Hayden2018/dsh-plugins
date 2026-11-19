@@ -69,9 +69,10 @@ function kept(name) {
  * @returns the imported namespace.
  */
 async function importExecutorFrom(requireFrom) {
-  const specifier = requireFrom === undefined
-    ? EXECUTOR_PACKAGE
-    : pathToFileURL(createRequire(requireFrom).resolve(EXECUTOR_PACKAGE)).href;
+  const specifier =
+    requireFrom === undefined
+      ? EXECUTOR_PACKAGE
+      : pathToFileURL(createRequire(requireFrom).resolve(EXECUTOR_PACKAGE)).href;
   return import(specifier);
 }
 

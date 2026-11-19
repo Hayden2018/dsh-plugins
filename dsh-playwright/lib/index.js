@@ -12,10 +12,17 @@ export const inject = ['tools'];
 
 // No volatile field on unsupported hosts means no settings namespace or toggle,
 // regardless of the OS of the phone/browser displaying the Harness page.
-export const Config = z.object(AUTO_APPROVE_SUPPORTED ? {
-  attemptAutoApprove: z.boolean().default(false).volatile()
-    .description('Attempt auto approve on browser attachment'),
-} : {});
+export const Config = z.object(
+  AUTO_APPROVE_SUPPORTED
+    ? {
+        attemptAutoApprove: z
+          .boolean()
+          .default(false)
+          .volatile()
+          .description('Attempt auto approve on browser attachment'),
+      }
+    : {}
+);
 
 export function apply(ctx, config = {}) {
   fs.mkdirSync(SHOT_DIR, { recursive: true });

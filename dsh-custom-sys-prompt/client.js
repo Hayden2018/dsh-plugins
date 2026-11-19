@@ -1135,9 +1135,7 @@ window.__ModuleLoader__.load({
         value: row.id,
         label: row.name,
         ...(row.isDefault ? { badge: t('defaultBadge') } : {}),
-        ...(row.broken !== null && typeof row.broken === 'string'
-          ? { description: row.broken }
-          : {}),
+        ...(row.broken !== null && typeof row.broken === 'string' ? { description: row.broken } : {}),
       }));
 
       const nativeModeSelect = () =>

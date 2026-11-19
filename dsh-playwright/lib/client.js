@@ -48,7 +48,9 @@ window.__ModuleLoader__.load({
       const id = React.useId();
       React.useEffect(() => {
         mounted.current = true;
-        return () => { mounted.current = false; };
+        return () => {
+          mounted.current = false;
+        };
       }, []);
       if (state.status !== 'ready' || typeof state.value?.attemptAutoApprove !== 'boolean') return null;
       const checked = state.value.attemptAutoApprove;
@@ -58,9 +60,10 @@ window.__ModuleLoader__.load({
         setSaving(true);
         setError(null);
         try {
-          const accepted = await scope.mutate([
-            { op: 'set', path: ['attemptAutoApprove'], value: !checked },
-          ], state.revision);
+          const accepted = await scope.mutate(
+            [{ op: 'set', path: ['attemptAutoApprove'], value: !checked }],
+            state.revision
+          );
           if (!accepted && mounted.current) setError(t('failed'));
         } catch {
           if (mounted.current) setError(t('failed'));
@@ -69,17 +72,29 @@ window.__ModuleLoader__.load({
           if (mounted.current) setSaving(false);
         }
       }
-      return h('section', { className: 'pw-approval-section', 'aria-busy': saving },
+      return h(
+        'section',
+        { className: 'pw-approval-section', 'aria-busy': saving },
         h('style', null, css),
         h('h4', { className: 'pw-approval-title' }, t('title')),
-        h('div', { className: 'pw-approval-row' },
+        h(
+          'div',
+          { className: 'pw-approval-row' },
           h('span', { id: `${id}-label`, className: 'pw-approval-label' }, t('toggle')),
-          h('button', {
-            type: 'button', role: 'switch', className: 'pw-approval-switch',
-            'aria-checked': checked, 'aria-labelledby': `${id}-label`,
-            'aria-describedby': `${id}-hint`, disabled: saving || !state.writable,
-            onClick: toggle,
-          }, h('span', { className: 'pw-approval-thumb' }))
+          h(
+            'button',
+            {
+              type: 'button',
+              role: 'switch',
+              className: 'pw-approval-switch',
+              'aria-checked': checked,
+              'aria-labelledby': `${id}-label`,
+              'aria-describedby': `${id}-hint`,
+              disabled: saving || !state.writable,
+              onClick: toggle,
+            },
+            h('span', { className: 'pw-approval-thumb' })
+          )
         ),
         h('p', { id: `${id}-hint`, className: 'pw-approval-hint' }, t('hint')),
         saving ? h('p', { className: 'pw-approval-hint', role: 'status' }, t('saving')) : null,
@@ -94,12 +109,23 @@ window.__ModuleLoader__.load({
         const scope = ctx.configForms.get(CONFIG_NS);
         // The Host exposes this namespace only on Windows. Never use navigator:
         // a phone can configure a Windows host, and vice versa.
-        ctx.effect(() => ctx.configForms.whileServed([CONFIG_NS], () =>
-          ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-            name: 'plugins.bundle.config', key: 'playwright-browser', locale: NS,
-            inject: () => ({ scope }),
-          }, ApprovalSettings))
-        ), 'playwright-browser: attachment option');
+        ctx.effect(
+          () =>
+            ctx.configForms.whileServed([CONFIG_NS], () =>
+              ctx.slots.inject('plugins.bundle.config', () =>
+                ctx.slots.register(
+                  {
+                    name: 'plugins.bundle.config',
+                    key: 'playwright-browser',
+                    locale: NS,
+                    inject: () => ({ scope }),
+                  },
+                  ApprovalSettings
+                )
+              )
+            ),
+          'playwright-browser: attachment option'
+        );
       },
     };
   },

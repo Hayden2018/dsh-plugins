@@ -11,8 +11,12 @@ export const AUTO_APPROVE_SUPPORTED = process.platform === 'win32';
  * other applications' similarly named buttons are excluded by ProcessId.
  */
 function approvalScript({ port, host }, timeoutMs) {
-  const addresses = host === '127.0.0.1' ? ['127.0.0.1', '0.0.0.0']
-    : host === '::1' ? ['::1', '::'] : ['127.0.0.1', '::1', '0.0.0.0', '::'];
+  const addresses =
+    host === '127.0.0.1'
+      ? ['127.0.0.1', '0.0.0.0']
+      : host === '::1'
+        ? ['::1', '::']
+        : ['127.0.0.1', '::1', '0.0.0.0', '::'];
   const addressList = addresses.map((address) => `'${address}'`).join(', ');
   // Base64 JSON avoids PowerShell quoting issues and preserves non-Latin labels.
   const labelData = Buffer.from(JSON.stringify(CHROME_CONSENT_LABELS), 'utf8').toString('base64');
@@ -137,18 +141,33 @@ export function startChromeAutoApprove(endpoint, { enabled, signal, timeoutMs, o
     clearInterval(preferenceWatch);
     signal?.removeEventListener('abort', stop);
     if (child && child.exitCode === null && child.signalCode === null) {
-      try { child.kill(); } catch { /* Cleanup must not change the attach outcome. */ }
+      try {
+        child.kill();
+      } catch {
+        /* Cleanup must not change the attach outcome. */
+      }
     }
   }
   try {
     const executable = path.join(
       process.env.SystemRoot || 'C:\\Windows',
-      'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'powershell.exe'
     );
-    child = spawn(executable, [
-      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand',
-      Buffer.from(approvalScript(target, timeoutMs), 'utf16le').toString('base64'),
-    ], { stdio: 'ignore', windowsHide: true });
+    child = spawn(
+      executable,
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-WindowStyle',
+        'Hidden',
+        '-EncodedCommand',
+        Buffer.from(approvalScript(target, timeoutMs), 'utf16le').toString('base64'),
+      ],
+      { stdio: 'ignore', windowsHide: true }
+    );
     child.once('error', (error) => {
       stop();
       onError(error);
@@ -162,7 +181,9 @@ export function startChromeAutoApprove(endpoint, { enabled, signal, timeoutMs, o
     watchdog = setTimeout(stop, timeoutMs);
     watchdog.unref();
     // Switching off must also withdraw an approval attempt already in progress.
-    preferenceWatch = setInterval(() => { if (!enabled()) stop(); }, 200);
+    preferenceWatch = setInterval(() => {
+      if (!enabled()) stop();
+    }, 200);
     preferenceWatch.unref();
     if (signal?.aborted) stop();
   } catch (error) {

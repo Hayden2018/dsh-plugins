@@ -1,0 +1,63 @@
+{
+  "name": "dsh-file-io",
+  "version": "1.0.0",
+  "description": "Move files both ways between a remote browser and DSH's Sidebar: download any file the preview shows (PDF, XLSX, DOCX, images, binaries) through an authenticated streaming attachment route and a Download control, and upload one file (max 100 MB) into the workspace through an atomic, one-at-a-time upload control on the files page.",
+  "license": "MIT",
+  "author": "Wilson Cheng <wilson.cheng.assistant@gmail.com>",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src/**/*.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE",
+    "docs/*.png"
+  ],
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": "^0.2.2-rc.5"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "file-io",
+    "download",
+    "upload",
+    "attachment",
+    "preview",
+    "remote",
+    "streaming"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview",
+        "@deepseek-ai/dsh-client-ui-sidebar-files"
+      ]
+    },
+    "compatibility": {
+      "dshReleases": {
+        "0.2.2-rc.5": "compatible"
+      }
+    }
+  }
+}

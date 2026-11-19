@@ -457,11 +457,23 @@ export function apply(ctx) {
     };
 
     routeCtx.effect(
-      () => routeCtx.webServer.register({ kind: 'exact', path: STATUS_PATH, auth: 'required', handler: statusHandler }),
+      () =>
+        routeCtx.webServer.register({
+          kind: 'exact',
+          path: STATUS_PATH,
+          auth: 'required',
+          handler: statusHandler,
+        }),
       'archive-purge: status route'
     );
     routeCtx.effect(
-      () => routeCtx.webServer.register({ kind: 'exact', path: PURGE_PATH, auth: 'required', handler: purgeHandler }),
+      () =>
+        routeCtx.webServer.register({
+          kind: 'exact',
+          path: PURGE_PATH,
+          auth: 'required',
+          handler: purgeHandler,
+        }),
       'archive-purge: purge route'
     );
   });

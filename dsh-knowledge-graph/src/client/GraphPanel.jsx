@@ -8,14 +8,7 @@
  * and description, and can create, rename, or delete one relation through the
  * guarded node and edge routes; every other field stays read-only.
  */
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { cytoscape, ensureFcose } from './graph-engine.js';
 import { buildStyle, typeColor, TYPE_ORDER } from './graph-style.js';
 
@@ -130,7 +123,15 @@ function runLayout(cy) {
 /** Refresh glyph. */
 function RefreshIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M20 11a8 8 0 1 0-2.3 5.7" />
       <path d="M20 4v7h-7" />
     </svg>
@@ -140,7 +141,15 @@ function RefreshIcon() {
 /** Fit glyph. */
 function FitIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
     </svg>
   );
@@ -149,7 +158,15 @@ function FitIcon() {
 /** Layout glyph. */
 function LayoutIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="6" cy="7" r="2.2" />
       <circle cx="18" cy="7" r="2.2" />
       <circle cx="12" cy="18" r="2.2" />
@@ -161,7 +178,15 @@ function LayoutIcon() {
 /** Label glyph. */
 function LabelIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9-9-9Z" />
       <circle cx="7.5" cy="7.5" r="1.3" />
     </svg>
@@ -171,7 +196,15 @@ function LabelIcon() {
 /** Neighborhood-focus glyph. */
 function FocusIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <circle cx="12" cy="12" r="3.2" />
       <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
     </svg>
@@ -181,7 +214,14 @@ function FocusIcon() {
 /** Close glyph. */
 function CloseIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
       <path d="m6 6 12 12M18 6 6 18" />
     </svg>
   );
@@ -190,7 +230,15 @@ function CloseIcon() {
 /** Edit glyph. */
 function EditIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M4 20h4L19 9l-4-4L4 16v4Z" />
       <path d="m13.5 6.5 4 4" />
     </svg>
@@ -200,7 +248,14 @@ function EditIcon() {
 /** Add-relation glyph. */
 function PlusIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
       <path d="M12 5v14M5 12h14" />
     </svg>
   );
@@ -209,7 +264,15 @@ function PlusIcon() {
 /** Delete-relation glyph. */
 function TrashIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
     </svg>
   );
@@ -330,7 +393,9 @@ function NodeCreateForm({ t, sessionId, onCancel, onCreated }) {
         <span className="kg-field-label">{t('type')}</span>
         <select className="kg-select" value={type} onChange={(event) => setType(event.target.value)}>
           {TYPE_ORDER.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
         </select>
       </label>
@@ -451,7 +516,9 @@ function NodeEditForm({ node, sessionId, t, onCancel, onSaved }) {
         <span className="kg-field-label">{t('type')}</span>
         <select className="kg-select" value={type} onChange={(event) => setType(event.target.value)}>
           {TYPE_ORDER.map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
         </select>
       </label>
@@ -660,7 +727,9 @@ function EdgeCreateForm({ fromNode, nodes, t, sessionId, onCancel, onCreated }) 
         <span className="kg-field-label">{t('target')}</span>
         <select className="kg-select" value={toId} onChange={(event) => setToId(event.target.value)}>
           {targets.map((node) => (
-            <option key={node.id} value={node.id}>{node.name}</option>
+            <option key={node.id} value={node.id}>
+              {node.name}
+            </option>
           ))}
         </select>
       </label>
@@ -759,7 +828,7 @@ function EntityDrawer({
       <div className="kg-drawer-head">
         <span className="kg-dot" style={{ background: color }} />
         <h3 className="kg-drawer-title">
-          {creatingRelation ? t('createRelation') : editing ? t('editEntity') : shown?.name ?? t('entity')}
+          {creatingRelation ? t('createRelation') : editing ? t('editEntity') : (shown?.name ?? t('entity'))}
         </h3>
         {node !== undefined && !editing && !creatingRelation && !confirmingDelete ? (
           <IconButton label={t('addRelation')} onClick={() => setCreatingRelation(true)}>
@@ -807,15 +876,26 @@ function EntityDrawer({
         ) : (
           <>
             {detail === null || detail.loading === true ? (
-              <p className="kg-loading-line"><Spinner /> {t('loadingEntity')}</p>
+              <p className="kg-loading-line">
+                <Spinner /> {t('loadingEntity')}
+              </p>
             ) : null}
             {detail?.error ? <p className="kg-error-line">{detail.error}</p> : null}
             {node !== undefined ? (
               <>
                 <div className="kg-meta">
-                  <span className="kg-badge"><span className="kg-dot" style={{ background: color }} />{node.type}</span>
-                  <span>{node.degree} {t('relations')}</span>
-                  {node.revision ? <span>{t('revision')} {node.revision}</span> : null}
+                  <span className="kg-badge">
+                    <span className="kg-dot" style={{ background: color }} />
+                    {node.type}
+                  </span>
+                  <span>
+                    {node.degree} {t('relations')}
+                  </span>
+                  {node.revision ? (
+                    <span>
+                      {t('revision')} {node.revision}
+                    </span>
+                  ) : null}
                 </div>
                 {deleteError !== null ? <p className="kg-error-line">{deleteError}</p> : null}
                 {confirmingDelete ? (
@@ -846,7 +926,11 @@ function EntityDrawer({
                 ) : null}
                 {node.tags.length > 0 ? (
                   <div className="kg-tags">
-                    {node.tags.map((tag) => <span key={tag} className="kg-tag">{tag}</span>)}
+                    {node.tags.map((tag) => (
+                      <span key={tag} className="kg-tag">
+                        {tag}
+                      </span>
+                    ))}
                   </div>
                 ) : null}
                 <p className={node.description ? 'kg-desc' : 'kg-empty-line'}>
@@ -860,14 +944,24 @@ function EntityDrawer({
                 {node.edges.outgoing.length > 0 ? (
                   <div className="kg-relations">
                     {node.edges.outgoing.map((edge) => (
-                      <RelationRow key={`out-${edge.relation}-${edge.to_id}`} edge={edge} t={t} onSelectEdge={onSelectEdge} />
+                      <RelationRow
+                        key={`out-${edge.relation}-${edge.to_id}`}
+                        edge={edge}
+                        t={t}
+                        onSelectEdge={onSelectEdge}
+                      />
                     ))}
                   </div>
                 ) : null}
                 {node.edges.incoming.length > 0 ? (
                   <div className="kg-relations">
                     {node.edges.incoming.map((edge) => (
-                      <RelationRow key={`in-${edge.relation}-${edge.from_id}`} edge={edge} t={t} onSelectEdge={onSelectEdge} />
+                      <RelationRow
+                        key={`in-${edge.relation}-${edge.from_id}`}
+                        edge={edge}
+                        t={t}
+                        onSelectEdge={onSelectEdge}
+                      />
                     ))}
                   </div>
                 ) : null}
@@ -878,13 +972,17 @@ function EntityDrawer({
                     <h4 className="kg-section-title">{t('attachments')}</h4>
                     <ul className="kg-attachments">
                       {node.attachments.map((attachment) => (
-                        <li key={attachment} className="kg-attachment">{attachment}</li>
+                        <li key={attachment} className="kg-attachment">
+                          {attachment}
+                        </li>
                       ))}
                     </ul>
                   </>
                 ) : null}
 
-                <p className="kg-footnote">{t('updated')} {formatDate(node.updated_at)}</p>
+                <p className="kg-footnote">
+                  {t('updated')} {formatDate(node.updated_at)}
+                </p>
               </>
             ) : null}
           </>
@@ -994,7 +1092,9 @@ function EdgeDrawer({ edge, siblings, nodeById, t, sessionId, onClose, onSelectN
         ) : (
           <>
             {loading ? (
-              <p className="kg-loading-line"><Spinner /> {t('loadingRelation')}</p>
+              <p className="kg-loading-line">
+                <Spinner /> {t('loadingRelation')}
+              </p>
             ) : null}
             {error !== null ? <p className="kg-error-line">{error}</p> : null}
             <div className="kg-relation-top kg-relation-headline">
@@ -1012,8 +1112,16 @@ function EdgeDrawer({ edge, siblings, nodeById, t, sessionId, onClose, onSelectN
             </p>
             {detail !== null ? (
               <div className="kg-meta">
-                {detail.revision ? <span>{t('revision')} {detail.revision}</span> : null}
-                {detail.updated_at ? <span>{t('updated')} {formatDate(detail.updated_at)}</span> : null}
+                {detail.revision ? (
+                  <span>
+                    {t('revision')} {detail.revision}
+                  </span>
+                ) : null}
+                {detail.updated_at ? (
+                  <span>
+                    {t('updated')} {formatDate(detail.updated_at)}
+                  </span>
+                ) : null}
               </div>
             ) : null}
             <h4 className="kg-section-title">{t('connectedEntities')}</h4>
@@ -1227,10 +1335,7 @@ export function GraphPanel({ t, theme, sessionId }) {
     };
     const onDouble = (event) => {
       const node = event.target;
-      cy.animate(
-        { center: { eles: node }, zoom: Math.max(cy.zoom(), 1.1) },
-        { duration: 260 }
-      );
+      cy.animate({ center: { eles: node }, zoom: Math.max(cy.zoom(), 1.1) }, { duration: 260 });
     };
     cy.on('tap', 'node', onNode);
     cy.on('tap', 'edge', onEdge);
@@ -1295,8 +1400,14 @@ export function GraphPanel({ t, theme, sessionId }) {
     }));
     const nodeIds = nodes.map((node) => node.data.id).sort();
     const edgeIds = edges.map((edge) => edge.data.id).sort();
-    const currentNodes = cy.nodes().map((node) => node.id()).sort();
-    const currentEdges = cy.edges().map((edge) => edge.id()).sort();
+    const currentNodes = cy
+      .nodes()
+      .map((node) => node.id())
+      .sort();
+    const currentEdges = cy
+      .edges()
+      .map((edge) => edge.id())
+      .sort();
     const sameTopology =
       nodeIds.length === currentNodes.length &&
       edgeIds.length === currentEdges.length &&
@@ -1430,10 +1541,7 @@ export function GraphPanel({ t, theme, sessionId }) {
     }).length;
   }, [graph, query, disabledTypes]);
 
-  const nodeById = useMemo(
-    () => new Map((graph?.nodes ?? []).map((node) => [node.id, node])),
-    [graph]
-  );
+  const nodeById = useMemo(() => new Map((graph?.nodes ?? []).map((node) => [node.id, node])), [graph]);
   const selectedEdge = useMemo(() => {
     if (selected?.kind !== 'edge') return null;
     if (selected.edge !== undefined) return selected.edge;
@@ -1468,9 +1576,7 @@ export function GraphPanel({ t, theme, sessionId }) {
     (fromId, relation, toId) => {
       const edge = graph?.edges.find(
         (candidate) =>
-          candidate.source === fromId &&
-          candidate.relation === relation &&
-          candidate.target === toId
+          candidate.source === fromId && candidate.relation === relation && candidate.target === toId
       );
       if (edge !== undefined) {
         setSelected({ kind: 'edge', id: edge.id });
@@ -1519,7 +1625,14 @@ export function GraphPanel({ t, theme, sessionId }) {
       <div className="kg-header">
         <div className="kg-heading">
           <span className="kg-heading-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
               <circle cx="6" cy="7" r="2.1" />
               <circle cx="18" cy="7" r="2.1" />
               <circle cx="12" cy="18" r="2.1" />
@@ -1557,7 +1670,8 @@ export function GraphPanel({ t, theme, sessionId }) {
 
       {graph?.truncated ? (
         <div className="kg-banner">
-          {t('partialView')} {graph.nodes.length}/{graph.totals?.nodes ?? graph.nodes.length} · {graph.edges.length}/{graph.totals?.edges ?? graph.edges.length}
+          {t('partialView')} {graph.nodes.length}/{graph.totals?.nodes ?? graph.nodes.length} ·{' '}
+          {graph.edges.length}/{graph.totals?.edges ?? graph.edges.length}
         </div>
       ) : null}
 
@@ -1591,10 +1705,18 @@ export function GraphPanel({ t, theme, sessionId }) {
         ) : null}
 
         <div className="kg-canvas-actions">
-          <IconButton label={t('fit')} onClick={fitGraph} disabled={graph === null || graph.nodes.length === 0}>
+          <IconButton
+            label={t('fit')}
+            onClick={fitGraph}
+            disabled={graph === null || graph.nodes.length === 0}
+          >
             <FitIcon />
           </IconButton>
-          <IconButton label={t('relayout')} onClick={relayout} disabled={graph === null || graph.nodes.length === 0}>
+          <IconButton
+            label={t('relayout')}
+            onClick={relayout}
+            disabled={graph === null || graph.nodes.length === 0}
+          >
             <LayoutIcon />
           </IconButton>
           <IconButton label={t('labels')} active={labelsOn} onClick={() => setLabelsOn((value) => !value)}>

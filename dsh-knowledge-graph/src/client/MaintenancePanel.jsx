@@ -190,7 +190,12 @@ export function MaintenancePanel(props) {
     status === null
       ? []
       : [
-          [t('location'), <span style={styles.value}><code style={styles.code}>{status.dataDir}</code></span>],
+          [
+            t('location'),
+            <span style={styles.value}>
+              <code style={styles.code}>{status.dataDir}</code>
+            </span>,
+          ],
           [t('file'), <span style={styles.value}>{status.exists ? t('present') : t('absent')}</span>],
           [t('size'), <span style={styles.value}>{formatBytes(status.bytes)}</span>],
           [t('entitiesLabel'), <span style={styles.value}>{String(status.nodes)}</span>],
@@ -215,20 +220,32 @@ export function MaintenancePanel(props) {
             {loading ? t('refreshing') : t('refresh')}
           </button>
         </div>
-        {loading && status === null ? <p style={styles.hint} role="status">…</p> : null}
+        {loading && status === null ? (
+          <p style={styles.hint} role="status">
+            …
+          </p>
+        ) : null}
         {loadError !== null ? (
-          <div role="alert"><p style={styles.error}>{`${t('loadFailed')} ${loadError}`}</p></div>
+          <div role="alert">
+            <p style={styles.error}>{`${t('loadFailed')} ${loadError}`}</p>
+          </div>
         ) : null}
         {status !== null ? (
           <div style={styles.grid}>
             {rows.flatMap(([label, value], index) => [
-              <span key={`l${index}`} style={styles.label}>{label}</span>,
-              <span key={`v${index}`} style={styles.value}>{value}</span>,
+              <span key={`l${index}`} style={styles.label}>
+                {label}
+              </span>,
+              <span key={`v${index}`} style={styles.value}>
+                {value}
+              </span>,
             ])}
           </div>
         ) : null}
         {status !== null && status.fault.length > 0 ? (
-          <div role="alert"><p style={styles.error}>{`${t('fault')}: ${status.fault}`}</p></div>
+          <div role="alert">
+            <p style={styles.error}>{`${t('fault')}: ${status.fault}`}</p>
+          </div>
         ) : null}
       </div>
 
@@ -256,8 +273,16 @@ export function MaintenancePanel(props) {
             </button>
           ) : null}
         </div>
-        {notice !== null ? <p style={styles.notice} role="status">{notice}</p> : null}
-        {actionError !== null ? <p style={styles.error} role="alert">{actionError}</p> : null}
+        {notice !== null ? (
+          <p style={styles.notice} role="status">
+            {notice}
+          </p>
+        ) : null}
+        {actionError !== null ? (
+          <p style={styles.error} role="alert">
+            {actionError}
+          </p>
+        ) : null}
       </div>
     </div>
   );

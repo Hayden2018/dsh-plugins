@@ -174,21 +174,21 @@ The skill requires a profile with the skill registry; profiles backed by `dsh-ba
 
 ## Developer module map
 
-| Area              | Module                                                 | Responsibility                                                                 |
-| ----------------- | ------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Composition       | [`lib/index.js`](./lib/index.js)                       | Assemble the browser session, operations, and public tools.                    |
-| Browser lifecycle | [`lib/browser-session.js`](./lib/browser-session.js)   | Own launch/attach state, current page, and tab selection.                      |
-| Configuration     | [`lib/settings.js`](./lib/settings.js)                 | Resolve environment-backed browser settings and absolute screenshot directory. |
-| Async control     | [`lib/async.js`](./lib/async.js)                       | Handle cancellation races and bounded page round-trips.                        |
-| CDP               | [`lib/cdp.js`](./lib/cdp.js)                           | Resolve attach endpoints and produce connection diagnostics.                   |
-| Configuration UI  | [`lib/client.js`](./lib/client.js)                     | Render the Windows-host-only attachment approval toggle on the plugin page.   |
-| Consent labels    | [`lib/chrome-consent-labels.js`](./lib/chrome-consent-labels.js) | Pair upstream Chrome dialog titles and approval buttons across languages. |
-| Native approval   | [`lib/win-cdp-auto-approve.js`](./lib/win-cdp-auto-approve.js) | Own the bounded, opt-in Windows UI Automation helper.                    |
-| Browser actions   | [`lib/operations.js`](./lib/operations.js)             | Implement page operations against the session.                                 |
-| Public contracts  | [`lib/tool-definitions.js`](./lib/tool-definitions.js) | Register tool schemas, descriptions, and argument handling.                    |
-| Results           | [`lib/results.js`](./lib/results.js)                   | Format successful tool values without translating page-derived content.        |
-| Screenshots       | [`lib/screenshot.js`](./lib/screenshot.js)             | Save PNGs and optionally attach image content.                                 |
-| Bundled skill     | [`lib/skill-provider.js`](./lib/skill-provider.js)     | Register the English site-map skill and render its table.                      |
+| Area              | Module                                                           | Responsibility                                                                 |
+| ----------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Composition       | [`lib/index.js`](./lib/index.js)                                 | Assemble the browser session, operations, and public tools.                    |
+| Browser lifecycle | [`lib/browser-session.js`](./lib/browser-session.js)             | Own launch/attach state, current page, and tab selection.                      |
+| Configuration     | [`lib/settings.js`](./lib/settings.js)                           | Resolve environment-backed browser settings and absolute screenshot directory. |
+| Async control     | [`lib/async.js`](./lib/async.js)                                 | Handle cancellation races and bounded page round-trips.                        |
+| CDP               | [`lib/cdp.js`](./lib/cdp.js)                                     | Resolve attach endpoints and produce connection diagnostics.                   |
+| Configuration UI  | [`lib/client.js`](./lib/client.js)                               | Render the Windows-host-only attachment approval toggle on the plugin page.    |
+| Consent labels    | [`lib/chrome-consent-labels.js`](./lib/chrome-consent-labels.js) | Pair upstream Chrome dialog titles and approval buttons across languages.      |
+| Native approval   | [`lib/win-cdp-auto-approve.js`](./lib/win-cdp-auto-approve.js)   | Own the bounded, opt-in Windows UI Automation helper.                          |
+| Browser actions   | [`lib/operations.js`](./lib/operations.js)                       | Implement page operations against the session.                                 |
+| Public contracts  | [`lib/tool-definitions.js`](./lib/tool-definitions.js)           | Register tool schemas, descriptions, and argument handling.                    |
+| Results           | [`lib/results.js`](./lib/results.js)                             | Format successful tool values without translating page-derived content.        |
+| Screenshots       | [`lib/screenshot.js`](./lib/screenshot.js)                       | Save PNGs and optionally attach image content.                                 |
+| Bundled skill     | [`lib/skill-provider.js`](./lib/skill-provider.js)               | Register the English site-map skill and render its table.                      |
 
 ## Community and support
 

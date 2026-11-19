@@ -227,9 +227,7 @@ function graphSnapshot(store, limits) {
   }
   allNodes.sort(
     (left, right) =>
-      right.degree - left.degree ||
-      left.name.localeCompare(right.name) ||
-      left.id.localeCompare(right.id)
+      right.degree - left.degree || left.name.localeCompare(right.name) || left.id.localeCompare(right.id)
   );
   const nodes = allNodes.slice(0, limits.maxGraphNodes);
   const keep = new Set(nodes.map((node) => node.id));
@@ -443,7 +441,7 @@ function registerGraphRoutes(routeCtx, store, limits) {
     }
     const rawSession = req.headers['x-dsh-kg-session'];
     const sessionId =
-      (Array.isArray(rawSession) ? rawSession[0] : rawSession ?? '').trim().slice(0, 200) || 'web-ui';
+      (Array.isArray(rawSession) ? rawSession[0] : (rawSession ?? '')).trim().slice(0, 200) || 'web-ui';
     try {
       if (action === 'create') {
         const unknown = Object.keys(body).filter((key) => !EDITABLE_NODE_FIELDS.has(key));
@@ -623,7 +621,7 @@ function registerGraphRoutes(routeCtx, store, limits) {
   /** Resolve the changelog writer, falling back to the Web UI when no session is passed. */
   const sessionOf = (req) => {
     const raw = req.headers['x-dsh-kg-session'];
-    return (Array.isArray(raw) ? raw[0] : raw ?? '').trim().slice(0, 200) || 'web-ui';
+    return (Array.isArray(raw) ? raw[0] : (raw ?? '')).trim().slice(0, 200) || 'web-ui';
   };
 
   /** Read one edge's full record for the relation inspector. */
@@ -746,9 +744,7 @@ function registerGraphRoutes(routeCtx, store, limits) {
         );
       }
       const newRelation = hasRelation ? bodyRelation(body.new_relation, 'new_relation') : undefined;
-      const description = hasDescription
-        ? optionalText(body.description, 'description')
-        : undefined;
+      const description = hasDescription ? optionalText(body.description, 'description') : undefined;
 
       store.assertReady();
       const current = store.edgeOf(fromId, relation, toId);
@@ -806,15 +802,23 @@ function registerGraphRoutes(routeCtx, store, limits) {
   };
 
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: GRAPH_PATH, auth: 'required', handler: graphHandler }),
+    () =>
+      routeCtx.webServer.register({
+        kind: 'exact',
+        path: GRAPH_PATH,
+        auth: 'required',
+        handler: graphHandler,
+      }),
     'knowledge-graph: graph route'
   );
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, auth: 'required', handler: nodeHandler }),
+    () =>
+      routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, auth: 'required', handler: nodeHandler }),
     'knowledge-graph: node route'
   );
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: EDGE_PATH, auth: 'required', handler: edgeHandler }),
+    () =>
+      routeCtx.webServer.register({ kind: 'exact', path: EDGE_PATH, auth: 'required', handler: edgeHandler }),
     'knowledge-graph: edge route'
   );
 }

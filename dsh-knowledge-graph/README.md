@@ -108,13 +108,13 @@ from the Sidebar's add control and pick the **Knowledge graph** guide card (or
 The page is read-only outside its inspector editors. It uses five same-origin
 routes, all guarded by the same connection check as the maintenance route:
 
-| Route | Purpose |
-| --- | --- |
-| `GET /knowledge-graph/graph` | Compact snapshot: nodes with type, tags and degree, plus relation previews. |
-| `GET /knowledge-graph/node?id=<id>` | One entity's full record: description, tags, attachments, both edge directions, degree. |
-| `POST /knowledge-graph/node` | Create, update, or delete one entity. |
-| `GET /knowledge-graph/edge?from_id=<id>&relation=<label>&to_id=<id>` | One relation's full description, timestamps, revision, and endpoint summaries. |
-| `POST /knowledge-graph/edge` | Create, rename, or delete one relation. |
+| Route                                                                | Purpose                                                                                 |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `GET /knowledge-graph/graph`                                         | Compact snapshot: nodes with type, tags and degree, plus relation previews.             |
+| `GET /knowledge-graph/node?id=<id>`                                  | One entity's full record: description, tags, attachments, both edge directions, degree. |
+| `POST /knowledge-graph/node`                                         | Create, update, or delete one entity.                                                   |
+| `GET /knowledge-graph/edge?from_id=<id>&relation=<label>&to_id=<id>` | One relation's full description, timestamps, revision, and endpoint summaries.          |
+| `POST /knowledge-graph/edge`                                         | Create, rename, or delete one relation.                                                 |
 
 The node route dispatches on `x-dsh-kg-action`:
 
@@ -195,10 +195,10 @@ then caches entities for the life of the panel.
 
 ### Configuration
 
-| Field | Default | Meaning |
-| --- | --- | --- |
-| `maxGraphNodes` | `2000` | Entities one snapshot may include, highest degree first. |
-| `maxGraphEdges` | `8000` | Relations one snapshot may include. |
+| Field           | Default | Meaning                                                  |
+| --------------- | ------- | -------------------------------------------------------- |
+| `maxGraphNodes` | `2000`  | Entities one snapshot may include, highest degree first. |
+| `maxGraphEdges` | `8000`  | Relations one snapshot may include.                      |
 
 Raise these if the partial-view banner appears and the browser remains
 comfortable; the canvas is client-rendered, so very large graphs trade memory
@@ -221,13 +221,13 @@ Purge is user-only: it is not exposed as an agent tool.
 `dist/client.js` is generated; do not edit it by hand. Its source lives in
 `src/client/`:
 
-| Path | Role |
-| --- | --- |
-| `src/client/index.jsx` | Locale dictionaries, tab-type registration, slot registrations, guide card. |
-| `src/client/GraphPanel.jsx` | The right-Sidebar canvas, toolbar, inspector drawers, and panel CSS. |
-| `src/client/graph-style.js` | Type colours and the Cytoscape style sheet for light/dark. |
-| `src/client/graph-engine.js` | Cytoscape import and one-time fcose registration. |
-| `src/client/MaintenancePanel.jsx` | The bundle row's storage/purge page. |
+| Path                              | Role                                                                        |
+| --------------------------------- | --------------------------------------------------------------------------- |
+| `src/client/index.jsx`            | Locale dictionaries, tab-type registration, slot registrations, guide card. |
+| `src/client/GraphPanel.jsx`       | The right-Sidebar canvas, toolbar, inspector drawers, and panel CSS.        |
+| `src/client/graph-style.js`       | Type colours and the Cytoscape style sheet for light/dark.                  |
+| `src/client/graph-engine.js`      | Cytoscape import and one-time fcose registration.                           |
+| `src/client/MaintenancePanel.jsx` | The bundle row's storage/purge page.                                        |
 
 The build exists because the visualization bundles **Cytoscape 3** and
 **cytoscape-fcose**, while React remains external (the DSH client module table
