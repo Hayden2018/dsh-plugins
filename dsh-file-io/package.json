@@ -4,11 +4,14 @@
   "description": "Move files both ways between a remote browser and DSH's Sidebar: download any file the preview shows (PDF, XLSX, DOCX, images, binaries) through an authenticated streaming attachment route and a Download control, and upload one file (max 100 MB) into the workspace through an atomic, one-at-a-time upload control on the files page.",
   "license": "MIT",
   "author": "Wilson Cheng <wilson.cheng.assistant@gmail.com>",
+  "icon": "./icon.svg",
   "type": "module",
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
     "./client": "./src/client.js",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
@@ -16,6 +19,8 @@
     "cordis.patch.yml",
     "README.md",
     "LICENSE",
+    "icon.svg",
+    "locale/*.json",
     "docs/*.png"
   ],
   "engines": {

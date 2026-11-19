@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Knowledge Graph",
-    "description": "An installation-wide entity graph stored in SQLite under the harness home, with search, text drawing, path tracing, and explicit purge controls."
+    "description": "An installation-wide entity graph stored in SQLite under the harness home, accessible by models with visualizations."
   }
 }
