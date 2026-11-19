@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Installation-wide SQLite knowledge graph with search, query, traversal, merge, history, and an interactive right-Sidebar graph.",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.5"
   },
   "main": "./index.js",
   "icon": "./icon.svg",

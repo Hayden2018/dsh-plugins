@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Per-mode system-prompt additions with a settings preview, bundled with the Agent and Chat modes.",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.5"
   },
   "main": "./index.js",
   "scripts": {

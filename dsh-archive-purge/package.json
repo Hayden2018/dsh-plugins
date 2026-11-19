@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Counts archived sessions by latest activity and deletes their logs after a two-step confirmation.",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.19.0",
+    "dsh": ">=0.2.2-rc.5"
   },
   "main": "./index.js",
   "icon": "./icon.svg",

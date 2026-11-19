@@ -265,19 +265,6 @@ export function apply(ctx, config) {
         return;
       }
 
-      let rejection;
-      try {
-        rejection = routeCtx.connection.requestRejection(req);
-      } catch (error) {
-        sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
-        return;
-      }
-      if (rejection !== undefined) {
-        res.writeHead(rejection);
-        res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
-        return;
-      }
-
       let presetId;
       try {
         const url = new URL(req.url ?? '/', 'http://127.0.0.1');
@@ -309,7 +296,7 @@ export function apply(ctx, config) {
     };
 
     routeCtx.effect(
-      () => routeCtx.webServer.register({ kind: 'exact', path: PREVIEW_PATH, handler }),
+      () => routeCtx.webServer.register({ kind: 'exact', path: PREVIEW_PATH, auth: 'required', handler }),
       'prompt-editor: preview route'
     );
   });

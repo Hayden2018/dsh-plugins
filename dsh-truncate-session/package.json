@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Truncates a Session at a completed turn: forks it there, opens the fork, archives the original, and restores a dropped last prompt.",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.19.0",
+    "dsh": "^0.2.0-rc.2"
   },
   "main": "./index.js",
   "icon": "./icon.svg",

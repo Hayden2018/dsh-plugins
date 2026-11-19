@@ -55,11 +55,6 @@ function sendJson(res, status, value, head = false) {
   res.end(head ? undefined : body);
 }
 
-/** Reject an unauthorized or cross-origin caller before touching any data. */
-function rejectionOf(connection, req) {
-  return connection.requestRejection(req);
-}
-
 /** Read a small JSON body, refusing anything above the cap. */
 async function readJsonBody(req) {
   const chunks = [];
@@ -386,21 +381,6 @@ export function apply(ctx) {
   ctx.inject(['webServer', 'connection'], (routeCtx) => {
     const statusHandler = async (req, res) => {
       const method = req.method ?? 'GET';
-      let rejection;
-      try {
-        rejection = rejectionOf(routeCtx.connection, req);
-      } catch (error) {
-        sendJson(res, 500, {
-          ok: false,
-          error: { code: 'gateway/failed', message: messageOf(error) },
-        });
-        return;
-      }
-      if (rejection !== undefined) {
-        res.writeHead(rejection);
-        res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
-        return;
-      }
       if (method !== 'GET' && method !== 'HEAD') {
         res.writeHead(405, { allow: 'GET, HEAD' });
         res.end();
@@ -418,21 +398,6 @@ export function apply(ctx) {
 
     const purgeHandler = async (req, res) => {
       const method = req.method ?? 'GET';
-      let rejection;
-      try {
-        rejection = rejectionOf(routeCtx.connection, req);
-      } catch (error) {
-        sendJson(res, 500, {
-          ok: false,
-          error: { code: 'gateway/failed', message: messageOf(error) },
-        });
-        return;
-      }
-      if (rejection !== undefined) {
-        res.writeHead(rejection);
-        res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
-        return;
-      }
       if (method !== 'POST') {
         res.writeHead(405, { allow: 'POST' });
         res.end();
@@ -492,11 +457,11 @@ export function apply(ctx) {
     };
 
     routeCtx.effect(
-      () => routeCtx.webServer.register({ kind: 'exact', path: STATUS_PATH, handler: statusHandler }),
+      () => routeCtx.webServer.register({ kind: 'exact', path: STATUS_PATH, auth: 'required', handler: statusHandler }),
       'archive-purge: status route'
     );
     routeCtx.effect(
-      () => routeCtx.webServer.register({ kind: 'exact', path: PURGE_PATH, handler: purgeHandler }),
+      () => routeCtx.webServer.register({ kind: 'exact', path: PURGE_PATH, auth: 'required', handler: purgeHandler }),
       'archive-purge: purge route'
     );
   });

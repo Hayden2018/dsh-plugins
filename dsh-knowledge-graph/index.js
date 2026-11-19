@@ -335,19 +335,6 @@ function edgeSnapshot(store, fromId, relation, toId) {
 function registerAdminRoute(routeCtx, store) {
   const handler = async (req, res) => {
     const method = req.method ?? 'GET';
-    let rejection;
-    try {
-      rejection = routeCtx.connection.requestRejection(req);
-    } catch (error) {
-      sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
-      return;
-    }
-    if (rejection !== undefined) {
-      res.writeHead(rejection);
-      res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
-      return;
-    }
-
     if (method === 'GET' || method === 'HEAD') {
       try {
         sendJson(res, 200, { ok: true, status: store.status() }, method === 'HEAD');
@@ -398,39 +385,23 @@ function registerAdminRoute(routeCtx, store) {
   };
 
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: ADMIN_PATH, handler }),
+    () => routeCtx.webServer.register({ kind: 'exact', path: ADMIN_PATH, auth: 'required', handler }),
     'knowledge-graph: admin route'
   );
 }
 
 /**
  * Serve the compact graph snapshot, entity and relation inspector records, and
- * their user edit actions to the right-Sidebar visualization. Reads are
- * same-origin; mutations require the same connection check plus a JSON body and
- * an `x-dsh-kg-action` header.
+ * their user edit actions to the right-Sidebar visualization. The routes require
+ * an admitted Peer; mutations additionally require a JSON body and an
+ * `x-dsh-kg-action` header.
  * @param routeCtx - context carrying `webServer` and `connection`.
  * @param store - the live graph store.
  * @param limits - configured graph caps.
  */
 function registerGraphRoutes(routeCtx, store, limits) {
-  /** Reject an unauthenticated request; true means the caller may proceed. */
-  const allowed = (req, res, method) => {
-    let rejection;
-    try {
-      rejection = routeCtx.connection.requestRejection(req);
-    } catch (error) {
-      sendJson(res, 500, { ok: false, error: errorView(error) }, method === 'HEAD');
-      return false;
-    }
-    if (rejection === undefined) return true;
-    res.writeHead(rejection);
-    res.end(rejection === 401 ? 'unauthorized' : 'forbidden');
-    return false;
-  };
-
   const graphHandler = async (req, res) => {
     const method = req.method ?? 'GET';
-    if (!allowed(req, res, method)) return;
     if (method !== 'GET' && method !== 'HEAD') {
       res.writeHead(405, { allow: 'GET, HEAD' });
       res.end();
@@ -570,7 +541,6 @@ function registerGraphRoutes(routeCtx, store, limits) {
 
   const nodeHandler = async (req, res) => {
     const method = req.method ?? 'GET';
-    if (!allowed(req, res, method)) return;
     if (method === 'POST') {
       await mutateNode(req, res);
       return;
@@ -823,7 +793,6 @@ function registerGraphRoutes(routeCtx, store, limits) {
 
   const edgeHandler = async (req, res) => {
     const method = req.method ?? 'GET';
-    if (!allowed(req, res, method)) return;
     if (method === 'POST') {
       await mutateEdge(req, res);
       return;
@@ -837,15 +806,15 @@ function registerGraphRoutes(routeCtx, store, limits) {
   };
 
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: GRAPH_PATH, handler: graphHandler }),
+    () => routeCtx.webServer.register({ kind: 'exact', path: GRAPH_PATH, auth: 'required', handler: graphHandler }),
     'knowledge-graph: graph route'
   );
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, handler: nodeHandler }),
+    () => routeCtx.webServer.register({ kind: 'exact', path: NODE_PATH, auth: 'required', handler: nodeHandler }),
     'knowledge-graph: node route'
   );
   routeCtx.effect(
-    () => routeCtx.webServer.register({ kind: 'exact', path: EDGE_PATH, handler: edgeHandler }),
+    () => routeCtx.webServer.register({ kind: 'exact', path: EDGE_PATH, auth: 'required', handler: edgeHandler }),
     'knowledge-graph: edge route'
   );
 }
