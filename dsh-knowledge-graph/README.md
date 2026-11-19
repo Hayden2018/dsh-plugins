@@ -30,17 +30,6 @@ planning, so two profiles cannot commit a plan derived from stale state. A
 second writer waits up to the configured `busy_timeout` and then reports
 `storage_busy` rather than overwriting.
 
-### Migration from the profile-local layout
-
-Earlier versions kept `graph.sqlite` under
-`<profile>/data/dsh-knowledge-graph`. On first start at the new location the
-plugin picks the richest non-empty legacy database across the installation,
-copies it with `VACUUM INTO` (including the write-ahead log), validates it, and
-publishes it atomically. The legacy files are renamed with a
-`.migrated-YYYY-MM-DD` suffix instead of deleted. A lock serializes two profiles
-starting at once, and nothing is imported once the shared database exists, so a
-later purge is never undone by a restart.
-
 ## Tables
 
 Three application tables exist.
@@ -89,15 +78,6 @@ and only then update memory, so a failed write leaves both sides unchanged.
 `kg_get` never truncates a stored description; the rendered text is capped only
 by `maxGetChars` (200,000 characters by default), and hitting that cap is
 reported in the text.
-
-## Upgrading
-
-Schema generation 2 is the first release with the composite edge key and the
-changelog. A generation-1 database is upgraded in one transaction on first open:
-the edge table is rebuilt, `node.created_by_session_id` is backfilled from
-`updated_by_session_id`, and the changelog starts empty. A failed upgrade rolls
-back and leaves the file untouched, and the tools then report a storage fault
-instead of guessing.
 
 ## Graph visualization (right Sidebar)
 
@@ -149,49 +129,6 @@ The snapshot never carries full node descriptions, and edge descriptions are
 clipped to a 600-character preview. The inspector fetches the selected entity or
 relation (descriptions are clipped at 40,000 and 20,000 characters respectively),
 then caches entities for the life of the panel.
-
-### What the canvas does
-
-- **Cytoscape + fcose** render a force-directed graph. Node size grows with
-  degree, and node colour is stable per entity type.
-- **Parallel relations fan out.** The composite edge key
-  `(from_id, relation, to_id)` is preserved: two relations between the same pair
-  draw as two curved, labelled edges with arrowheads instead of one line.
-- **Search** (`name`, `type`, or any tag) dims non-matching entities and their
-  edges. **Type chips** at the bottom toggle whole types on and off; **All**
-  restores every type.
-- **Click a node** to open the inspector: type, tags, full description,
-  attachments, revision, update date, and incoming/outgoing relations. Clicking
-  a relation row opens that relation's inspector and highlights the relation on
-  the canvas.
-- **Create an entity** with the plus in the panel header. Enter name, type,
-  optional tags, and optional description; the store generates the id.
-- **Edit a node** with the pencil in the inspector. `name`, `type`, `tags`, and
-  `description` are editable; id, relations, attachments, revisions, and
-  timestamps are not. Saving sends the node's current revision, so a concurrent
-  edit fails visibly instead of overwriting it.
-- **Delete a node** with the trash in the inspector. The confirmation warns when
-  the entity has relations; confirming removes the entity and those relations
-  together, while neighbouring entities remain.
-- **Add a relation** with the plus in an entity inspector. The source is fixed;
-  choose any other entity in the current snapshot, then enter a relation label
-  and optional description. This creates one outgoing relation.
-- **Click an edge** to inspect `source — relation → target` and its full
-  description. The pencil edits the relation label and description; the trash
-  deletes the relation after confirmation. Endpoints and direction stay fixed.
-  Delete removes only the relation, never either entity. The two connected
-  entities are listed at the bottom; clicking one opens that entity's inspector.
-- **Relation edits are guarded.** Renaming onto an existing relation on the same
-  directed pair is refused instead of overwriting it, and every edit/delete
-  sends the relation's current revision.
-- **Focus neighborhood** hides everything outside the selected node's one-hop
-  closed neighborhood and fits it. **Labels** toggles node and relation text.
-- **Fit**, **Re-run layout**, and **Refresh** are in the floating canvas
-  toolbar. Double-clicking a node centres it.
-- **Theme-aware.** Node colours are data colours; labels, edges, selection rings
-  and surfaces follow the host light/dark palette through `theme/change`.
-- **Capped, not frozen.** Snapshots keep the highest-degree entities first. When
-  a cap applies, a banner reports the partial view and both totals.
 
 ### Configuration
 
@@ -260,12 +197,3 @@ client packages.
 After changing the Host half (`index.js`), reload the plugin (or restart DSH) so
 the new routes are mounted; the Web client reloads `dist/client.js` independently
 and can otherwise run against the previous Host route shape.
-
-## Limits
-
-`kg_save`, `kg_delete`, and `kg_merge` are exclusive; the read tools may run in
-parallel. `kg_draw_graph` caps nodes, edges, per-node neighbours, and characters,
-and reports every cap it hit. `kg_trace_node` reports `not_found_within_hops` when
-a longer path may exist and `no_path` only after exhausting the reachable graph.
-`kg_history` scans at most 5,000 changelog rows per call and reports when a
-result was truncated.

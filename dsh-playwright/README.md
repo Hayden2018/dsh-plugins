@@ -34,41 +34,6 @@ Browser automation for DSH (DeepSeek Harness): a set of `browser_*` tools that u
 | `browser_screenshot` | Save a PNG and return its absolute path                      |
 | `browser_close`      | Close a launched browser or disconnect from an attached one  |
 
-### Optional arguments and tab selection
-
-Every optional argument accepts `null`, which behaves exactly like omission. Required arguments do not become nullable. For model APIs that require every declared field, use `null` for unused options—not `0` or `""` as placeholders.
-
-```js
-browser_tabs({}); // list all tabs
-browser_tabs({ index: null, url: null, close: false }); // same list, all fields supplied
-browser_tabs({ index: 0, url: null, close: false }); // select tab 0, not list
-browser_tabs({ index: null, url: 'portal', close: false }); // match URL or title
-browser_tabs({ index: 2, url: null, close: true }); // close tab 2
-browser_attach({ endpoint: null, page: 'portal' }); // default endpoint, select a page
-```
-
-Tab indices are zero-based non-negative integers. Supply at most one of `index` and `url`; passing both, an empty `url`, or `close: true` without a target is an error. Listing does not require an index.
-
-`browser_open.waitUntil` accepts `commit`, `domcontentloaded` (default), `load`, or `networkidle`. `browser_click`, `browser_type`, and `browser_fill` have an optional element-action `timeout` (default 10000 ms); navigation defaults to 30000 ms. An explicit timeout of `0` disables that Playwright timeout. `browser_wait.ms: 0` does not wait, and extraction `limit: 0` returns an empty result.
-
-## Install into a DSH profile
-
-From any directory, install into a profile (this example uses `web`):
-
-```bash
-dsh plugin --profile web add git+https://github.com/whklwhkl/dsh-playwright.git
-```
-
-`dsh plugin` forwards the install source to pnpm in the profile and adds the bundle to `dsh.profile.bundles`. Registry package names, `github:<user>/<repo>`, and local paths are supported. Restart DSH after installation so the bundle is loaded for profile sessions.
-
-For local development, install the checkout as a symlink:
-
-```bash
-dsh plugin --profile web add link:/path/to/dsh-playwright
-```
-
-A linked checkout does not install its dependencies for you. Run `pnpm install` in the checkout first; otherwise the host cannot load `playwright-core` and the tools will not register. Restart DSH after plugin changes. On DSH versions without `dsh plugin`, add `playwright-browser` to the profile dependencies and `dsh.profile.bundles`, then install the profile dependencies.
-
 ## Prepare a browser
 
 `playwright-core` does not download a browser during package installation. To install the Chromium build matching this checkout's installed `playwright-core`, run this from the plugin checkout after `pnpm install`:
@@ -108,10 +73,6 @@ The helper uses Windows PowerShell and UI Automation without moving the mouse or
 
 The label pairs come from [Chromium's resource translations](https://chromium.googlesource.com/chromium/src/+/f3363f52a24e8571c9d94339c566e18d3450e633/chrome/app/resources/) at revision `f3363f52a24e8571c9d94339c566e18d3450e633`; upstream attribution and license are included in [`assets/chromium-LICENSE.txt`](./assets/chromium-LICENSE.txt).
 
-**Security limitation:** Chrome's accessibility dialog does not identify the requesting CDP client. Process/endpoint matching narrows the browser being approved, not which pending connection triggered its dialog. Enable this only when you trust other clients on the host and there are no unrelated pending debugging requests. Stale or queued dialogs may need manual dismissal/approval before a fresh attachment; the helper intentionally does not approve a queue.
-
-The helper is bounded by `PW_CDP_TIMEOUT` and stopped on attachment success/failure, cancellation, superseding session operations, plugin disposal, or disabling the option. No environment variable implicitly enables this feature.
-
 ### Manual setup and runtime attachment
 
 To use a debugging port, start Chrome with a dedicated user-data directory (Chrome 136+ ignores the remote-debugging-port flag for the default data directory) after fully closing that browser instance:
@@ -122,19 +83,6 @@ To use a debugging port, start Chrome with a dedicated user-data directory (Chro
 ```
 
 That directory has its own browser profile, so sign in to sites there as needed. CDP compatibility varies; the plugin does not guarantee support for arbitrary Chromium versions.
-
-You can also attach at runtime without restarting DSH:
-
-| Call                                     | Effect                                                                             |
-| ---------------------------------------- | ---------------------------------------------------------------------------------- |
-| `browser_attach`                         | Reuse the current attachment, or use `PW_CDP_ENDPOINT` (`auto` if unset)           |
-| `browser_attach({ endpoint: "chrome" })` | Attach to a channel, HTTP/WebSocket endpoint, `auto`, or comma-separated fallbacks |
-| `browser_attach({ page: "portal" })`     | Keep the browser and select a tab by URL/title substring; a miss is an error       |
-| `browser_attach({ endpoint: "launch" })` | Disconnect and return to a plugin-launched browser                                 |
-
-In attach mode, `browser_status` does not establish a connection. Repeating `browser_attach` to the same endpoint reuses the current connection. `browser_tabs` lists tabs (`*` marks the selected tab); pass an index or URL/title substring to select one, and `close: true` to close it. If there are no tabs and no page hint, attach can succeed without a selected page; the next page operation creates a blank tab. A supplied page hint is a strict match: if no tab matches, attach fails rather than silently selecting another page.
-
-`browser_open` navigates the currently selected tab. Check `browser_tabs` before using it if the user may be reading a page. `PW_CDP_PAGE` is a page-selection preference for attach; it is not a persistent pin. `browser_close` only disconnects in attach mode and does not close the user's browser. `PW_HEADLESS` and `PW_CHROMIUM_PATH` do not affect an attached browser.
 
 ## Configuration
 
@@ -189,10 +137,3 @@ The skill requires a profile with the skill registry; profiles backed by `dsh-ba
 | Results           | [`lib/results.js`](./lib/results.js)                             | Format successful tool values without translating page-derived content.        |
 | Screenshots       | [`lib/screenshot.js`](./lib/screenshot.js)                       | Save PNGs and optionally attach image content.                                 |
 | Bundled skill     | [`lib/skill-provider.js`](./lib/skill-provider.js)               | Register the English site-map skill and render its table.                      |
-
-## Community and support
-
-This plugin is part of the [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) ecosystem and uses the `dsh-plugin` topic for discoverability.
-
-- Plugin issues and feature requests: [Issues](https://github.com/whklwhkl/dsh-playwright/issues) and [Discussions](https://github.com/whklwhkl/dsh-playwright/discussions)
-- DSH framework feedback: [DeepSeek Harness Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions)
