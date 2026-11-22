@@ -85,51 +85,6 @@ The Web client registers a `knowledge-graph` page in the right Sidebar. Open it
 from the Sidebar's add control and pick the **Knowledge graph** guide card (or
 `ctx.sidebarRight.openTab('knowledge-graph')` from another client plugin).
 
-The page is read-only outside its inspector editors. It uses five same-origin
-routes, all guarded by the same connection check as the maintenance route:
-
-| Route                                                                | Purpose                                                                                 |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `GET /knowledge-graph/graph`                                         | Compact snapshot: nodes with type, tags and degree, plus relation previews.             |
-| `GET /knowledge-graph/node?id=<id>`                                  | One entity's full record: description, tags, attachments, both edge directions, degree. |
-| `POST /knowledge-graph/node`                                         | Create, update, or delete one entity.                                                   |
-| `GET /knowledge-graph/edge?from_id=<id>&relation=<label>&to_id=<id>` | One relation's full description, timestamps, revision, and endpoint summaries.          |
-| `POST /knowledge-graph/edge`                                         | Create, rename, or delete one relation.                                                 |
-
-The node route dispatches on `x-dsh-kg-action`:
-
-- `create` takes `{ "name": "...", "type": "...", "tags": [...], "description": "..." }`
-  and lets the store generate the stable id.
-- `update` takes `{ "id": "...", "expected_revision": 10, "patch": { ... } }`.
-  Only `name`, `type`, `tags`, and `description` may appear in the patch.
-- `delete` takes `{ "id": "...", "expected_revision": 10 }` and optionally
-  `cascade_edges: true`. Without cascade, an entity with relations is refused
-  with `409 has_edges`; with cascade, those relations are removed too while
-  neighbouring entities stay.
-
-All three `x-dsh-kg-session` headers are optional and feed the changelog writer.
-The writes go through the same `GraphStore.save`/`remove` paths as the agent
-tools, so revision checks, atomic commits, and changelog behavior are preserved.
-A stale revision returns `409 revision_conflict`.
-
-The edge mutation route dispatches on `x-dsh-kg-action`:
-
-- `create` takes `{ "from_id": "...", "to_id": "...", "relation": "...", "description": "..." }`.
-- `update` takes the original `from_id`, `relation`, and `to_id`, plus
-  `expected_revision`, and optionally `new_relation` and/or `description`.
-- `delete` takes the exact triple plus `expected_revision`.
-
-The Web route refuses a rename that would land on another relation already
-stored on the same directed pair, returning `409 already_exists` before writing.
-That guard is deliberately Web-only; the model-facing `kg_save` behavior is
-unchanged. All successful edge mutations go through the store's normal atomic
-commit and changelog path.
-
-The snapshot never carries full node descriptions, and edge descriptions are
-clipped to a 600-character preview. The inspector fetches the selected entity or
-relation (descriptions are clipped at 40,000 and 20,000 characters respectively),
-then caches entities for the life of the panel.
-
 ### Configuration
 
 | Field           | Default | Meaning                                                  |
@@ -141,15 +96,6 @@ Raise these if the partial-view banner appears and the browser remains
 comfortable; the canvas is client-rendered, so very large graphs trade memory
 for completeness. The existing `kg_draw_graph` tool remains the token-bounded
 text view for agents.
-
-## Maintenance panel
-
-The bundle row's configure page shows the resolved directory, file presence,
-size, entity, relation, and changelog counts, and the schema version. **Purge
-graph data** requires a second click and deletes the shared database directory
-for every profile; the next write recreates it lazily, so purging before
-uninstalling leaves no files behind. A purge reports `purge_blocked` while
-another profile keeps the database open.
 
 Purge is user-only: it is not exposed as an agent tool.
 
@@ -183,17 +129,3 @@ pnpm watch      # rebuilds dist/client.js on source changes
 no browser bundle until the build runs. `pnpm pack` also runs the `prepack`
 script, so a tarball always contains `dist/client.js`. Do not commit the old
 root-level `client.js`; it is a legacy build output and is ignored too.
-
-pnpm may report `Ignored build scripts: esbuild` during install; esbuild's
-platform binary is installed as an optional dependency and the build still
-runs. If it does not, run `pnpm approve-builds` and allow `esbuild`.
-
-`esbuild`, `cytoscape`, and `cytoscape-fcose` are `devDependencies` because they
-are compiled into `dist/client.js`; the installed plugin needs only Node's
-built-in `node:sqlite`. `package.json` keeps `./client` pointing at
-`dist/client.js`, and `dsh.client.inject` now includes the Sidebar and theme
-client packages.
-
-After changing the Host half (`index.js`), reload the plugin (or restart DSH) so
-the new routes are mounted; the Web client reloads `dist/client.js` independently
-and can otherwise run against the previous Host route shape.

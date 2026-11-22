@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Archive cleanup">
-  <rect x="4" y="5" width="24" height="7" rx="2" fill="#7c3aed"/>
-  <path d="M6.5 12h19l-1.7 13.2a2 2 0 0 1-2 1.8H10.2a2 2 0 0 1-2-1.8L6.5 12Z" fill="#7c3aed" fill-opacity="0.16"/>
-  <path d="M6.5 12h19l-1.7 13.2a2 2 0 0 1-2 1.8H10.2a2 2 0 0 1-2-1.8L6.5 12Z" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M12.5 17v6M16 17v6M19.5 17v6" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" opacity="0.75"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Archive cleanup">
+  <defs>
+    <linearGradient id="ap-lid" x1="7" y1="8" x2="29" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7CC8FF"/>
+      <stop offset="1" stop-color="#5C8CF2"/>
+    </linearGradient>
+    <linearGradient id="ap-body" x1="10" y1="14" x2="26" y2="28.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6DB9FB"/>
+      <stop offset="1" stop-color="#3C58DC"/>
+    </linearGradient>
+  </defs>
+  <rect x="7" y="8" width="22" height="5.2" rx="2" fill="url(#ap-lid)"/>
+  <path d="M9 14.8H27V25.5C27 27.1569 25.6569 28.5 24 28.5H12C10.3431 28.5 9 27.1569 9 25.5V14.8Z" fill="url(#ap-body)"/>
+  <path d="M15.2 18.8L20.8 24.4M20.8 18.8L15.2 24.4" stroke="#FFFFFF" stroke-width="2.1" stroke-linecap="round"/>
 </svg>

@@ -1,7 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Custom System Prompt">
-  <rect width="64" height="64" rx="14" fill="#1f6feb"/>
-  <path d="M17 19h30a3 3 0 0 1 3 3v15a3 3 0 0 1-3 3H33l-8 7v-7h-8a3 3 0 0 1-3-3V22a3 3 0 0 1 3-3Z" fill="#ffffff" opacity="0.94"/>
-  <path d="M24 27h16M24 33h10" stroke="#1f6feb" stroke-width="3" stroke-linecap="round"/>
-  <path d="m43.5 40.5 5.2 5.2-3.3 3.3-5.2-5.2 3.3-3.3Z" fill="#ffd166"/>
-  <path d="m45.6 38.4 1.6-1.6a2.3 2.3 0 0 1 3.3 3.3l-1.6 1.6-3.3-3.3Z" fill="#ff8a3d"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Custom system prompt">
+  <defs>
+    <mask id="csp-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36">
+      <rect width="36" height="36" fill="#FFFFFF"/>
+      <path d="M27.4 16.2L29.8 18.6L22.2 26.2L19.1 26.9L19.8 23.8L27.4 16.2Z" fill="#000000" stroke="#000000" stroke-width="2.8" stroke-linejoin="round"/>
+    </mask>
+    <linearGradient id="csp-card" x1="7.5" y1="8" x2="25" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6DB9FB"/>
+      <stop offset="1" stop-color="#3C58DC"/>
+    </linearGradient>
+    <linearGradient id="csp-pen" x1="20" y1="16" x2="29" y2="27" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45D9E7"/>
+      <stop offset="1" stop-color="#5B94F5"/>
+    </linearGradient>
+  </defs>
+  <g mask="url(#csp-cut)">
+    <rect x="11" y="7" width="15" height="18" rx="2.5" fill="#7FB7FC" fill-opacity="0.52"/>
+    <rect x="7.5" y="10" width="16.5" height="18.5" rx="2.5" fill="url(#csp-card)"/>
+    <path d="M11 14.5L13.3 16.5L11 18.5" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M15.8 18.5H20.4" stroke="#FFFFFF" stroke-width="1.7" stroke-linecap="round"/>
+    <path d="M11 22.8H16" stroke="#FFFFFF" stroke-opacity="0.72" stroke-width="1.7" stroke-linecap="round"/>
+  </g>
+  <path d="M27.4 16.2L29.8 18.6L22.2 26.2L19.1 26.9L19.8 23.8L27.4 16.2Z" fill="url(#csp-pen)" stroke="url(#csp-pen)" stroke-width="0.9" stroke-linejoin="round"/>
 </svg>

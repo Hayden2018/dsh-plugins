@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Knowledge graph">
   <defs>
-    <linearGradient id="kg-link" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7c8cff"/>
-      <stop offset="1" stop-color="#4ac6b7"/>
+    <linearGradient id="kg-link" x1="12" y1="12" x2="54" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#67C7FE"/>
+      <stop offset="1" stop-color="#3E5EE0"/>
     </linearGradient>
   </defs>
   <g fill="none" stroke="url(#kg-link)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">

@@ -11,8 +11,6 @@ the workspace.
 > from that project; this extension adds the upload direction and packages both
 > halves as `dsh-file-io`. See [Credit](#credit).
 
-![The download control in an XLSX preview header](docs/preview-xlsx-download.png)
-
 ## Why
 
 DeepSeek Harness's document preview renders a file instead of handing it to
@@ -20,16 +18,9 @@ you: an XLSX becomes a grid, a PDF becomes pages, an image becomes pixels. When
 the reader is **not** sitting at the Host — a phone, another laptop, a Tailscale
 peer — the preview has no download action, and the only file action in the
 header is **Open**, which launches the file in an application on the Host.
-`/api/file` is not a substitute: it sends the file's own `Content-Type` with no
-`Content-Disposition`, so the browser renders it, and it caps the body at the
-image-attachment limit (~20 MB).
 
 The reverse direction had the same gap: there was no way to put a file from the
 browser into the workspace the Sidebar browses.
-
-![The unpreviewable state, whose stock action opens a native app on the Host, now offers Download file](docs/download-unpreviewable.png)
-
-## What it does
 
 ### Download
 
@@ -108,61 +99,9 @@ stable code that the browser localizes.
   wrong machine.
 - **Downloads are unbounded in size** and stream in chunks; no image-sized cap.
 
-## Install
-
-The plugin is a profile-local package. From a checkout:
-
-```bash
-dsh plugin --profile <profile> add file:/absolute/path/to/dsh-file-io
-```
-
-Or add it to the profile's `package.json`:
-
-```jsonc
-{
-  "dependencies": { "dsh-file-io": "file:/absolute/path/to/dsh-file-io" },
-  "dsh": { "profile": { "bundles": [, /* … */ "dsh-file-io"] } },
-}
-```
-
-Then install and reload the Host:
-
-```bash
-cd "$DSH_HOME/profiles/<profile>" && pnpm install
-# restart dsh web, or reload the desktop app
-```
-
-Disable the original `dsh-file-download` plugin first: both claim the same
-`/api` routes and extend the same Sidebar slots, so they must not be enabled
-together.
-
 ## Localization
 
-The browser half ships English and Simplified Chinese dictionaries. Traditional
-Chinese comes from the separate
-[`dsh-zh-hant`](https://github.com/wilsonchengassistant/dsh-zh-hant) language
-pack, which converts this plugin's `zh` table under the retained
-`fileDownload` namespace. The plugin itself deliberately registers no `zh-Hant`
-dictionary: the locale service allows one dictionary per namespace and locale,
-and the pack owns `zh-Hant`.
-
-## Compatibility
-
-| DSH          | Status              |
-| ------------ | ------------------- |
-| `0.2.2-rc.5` | download and upload |
-
-The slots this plugin extends are declared by
-`@deepseek-ai/dsh-client-ui-sidebar-documentpreview` and
-`@deepseek-ai/dsh-client-ui-sidebar-files`; a future rename fails loudly at boot
-(slot not found), never silently. The download half derives from a plugin also
-verified on `0.2.0-rc.2`; the upload half requires the newer build.
-
-## Development
-
-```bash
-npm test   # unit tests for the Host route helpers and the browser bundle
-```
+The browser half ships English and Simplified Chinese dictionaries.
 
 ## Credit
 
@@ -170,15 +109,4 @@ npm test   # unit tests for the Host route helpers and the browser bundle
 [`dsh-file-download`](https://github.com/wilsonchengassistant/dsh-file-download)
 by Wilson Cheng.
 
-- The **download direction** — the `/api/file-download` route, its chunked
-  streaming, `Range` handling, `Content-Disposition` encoding, and the two
-  preview download controls — comes from that project.
-- The **upload direction** — `/api/file-upload`, its atomic staging and
-  publication, the files-page upload control, and this extension's packaging
-  and documentation — was added here.
-
 The original MIT copyright notice is retained in [LICENSE](LICENSE).
-
-## License
-
-MIT. See [LICENSE](LICENSE). Original work © Wilson Cheng.

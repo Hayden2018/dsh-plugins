@@ -36,6 +36,17 @@ export const inject = ['systemPrompt'];
 export const PROMPT_VARIABLE = 'custom_system_prompt';
 
 /**
+ * Placement of the gate's sole contribution.
+ *
+ * An assembled section's `order` is copied into the admitted `system/message`
+ * source metadata. That payload must be losslessly JSON-serializable, so an
+ * omitted order becomes an `undefined` property and the first turn fails with
+ * "session event \"system/message\" carries non-JSON-serializable data".
+ * Keep this finite and aligned with the editor's appended-section placement.
+ */
+const SECTION_ORDER = 20_000;
+
+/**
  * Replace the whole prompt with the editor's text for the mode.
  * @param ctx - preset scope context; the listener is admitted for this scope
  *   and its descendant agent scopes.
@@ -53,7 +64,9 @@ export function apply(ctx) {
         const resolved = typeof text === 'string' ? text : '';
         return {
           ...assembly,
-          sections: resolved.length > 0 ? [{ name: SECTION_NAME, text: resolved, interpolate: false }] : [],
+          sections: resolved.length > 0
+            ? [{ name: SECTION_NAME, order: SECTION_ORDER, text: resolved, interpolate: false }]
+            : [],
         };
       }
       // Older/disabled editor without the variable: keep whatever its per-agent

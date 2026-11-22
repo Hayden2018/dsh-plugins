@@ -1,7 +1,29 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="5" y="9" width="54" height="46" rx="10" fill="#2563eb"/>
-  <path d="M5 23h54" stroke="#fff" stroke-opacity=".45" stroke-width="2"/>
-  <circle cx="14" cy="16" r="2" fill="#fff"/>
-  <circle cx="21" cy="16" r="2" fill="#fff" fill-opacity=".65"/>
-  <path d="m27 31 14 8-14 8V31Z" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Playwright browser">
+  <defs>
+    <mask id="pw-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="36" height="36">
+      <rect width="36" height="36" fill="#FFFFFF"/>
+      <path d="M20 17L23 28.6L25.4 24.1L30 22.4Z" fill="#000000" stroke="#000000" stroke-width="3" stroke-linejoin="round"/>
+    </mask>
+    <linearGradient id="pw-bar" x1="7" y1="8" x2="27" y2="13.2" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7CC8FF"/>
+      <stop offset="1" stop-color="#5E90F2"/>
+    </linearGradient>
+    <linearGradient id="pw-body" x1="7" y1="12" x2="27" y2="26" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6DB9FB"/>
+      <stop offset="1" stop-color="#3B56DC"/>
+    </linearGradient>
+    <linearGradient id="pw-cursor" x1="19.5" y1="16.5" x2="29.5" y2="28.5" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45D9E7"/>
+      <stop offset="1" stop-color="#5A9CF8"/>
+    </linearGradient>
+  </defs>
+  <g mask="url(#pw-cut)">
+    <path d="M7 10.5C7 9.11929 8.11929 8 9.5 8H24.5C25.8807 8 27 9.11929 27 10.5V13.2H7V10.5Z" fill="url(#pw-bar)"/>
+    <path d="M7 13.2H27V23.2C27 24.5807 25.8807 25.7 24.5 25.7H9.5C8.11929 25.7 7 24.5807 7 23.2V13.2Z" fill="url(#pw-body)"/>
+    <circle cx="10.3" cy="10.6" r="1" fill="#FFFFFF"/>
+    <circle cx="13.4" cy="10.6" r="1" fill="#FFFFFF" fill-opacity="0.82"/>
+    <rect x="10.2" y="16.5" width="7.2" height="2" rx="1" fill="#FFFFFF" fill-opacity="0.92"/>
+    <rect x="10.2" y="20.2" width="5.5" height="1.8" rx="0.9" fill="#FFFFFF" fill-opacity="0.68"/>
+  </g>
+  <path d="M20 17L23 28.6L25.4 24.1L30 22.4Z" fill="url(#pw-cursor)" stroke="url(#pw-cursor)" stroke-width="1.2" stroke-linejoin="round"/>
 </svg>
