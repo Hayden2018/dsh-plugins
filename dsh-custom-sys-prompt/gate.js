@@ -64,9 +64,10 @@ export function apply(ctx) {
         const resolved = typeof text === 'string' ? text : '';
         return {
           ...assembly,
-          sections: resolved.length > 0
-            ? [{ name: SECTION_NAME, order: SECTION_ORDER, text: resolved, interpolate: false }]
-            : [],
+          sections:
+            resolved.length > 0
+              ? [{ name: SECTION_NAME, order: SECTION_ORDER, text: resolved, interpolate: false }]
+              : [],
         };
       }
       // Older/disabled editor without the variable: keep whatever its per-agent

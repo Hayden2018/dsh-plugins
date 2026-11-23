@@ -21,20 +21,7 @@ ago"; the page states this next to the number and shows the exact cutoff time.
   log write predates the cutoff.
 
 Both actions require a second click on the same button; the armed label names
-the number of sessions that will be deleted. A purge, per session:
-
-1. unloads it when the Host still has it resident but idle (a loaded Agent holds
-   the log's write lease, so its log cannot be removed until it is unloaded);
-   skips it when a turn is running or another writer holds the lease;
-2. claims the write handle, closes it, then removes the session's artifact
-   directory;
-3. drops the derived projection-cache row;
-4. removes the id from the archive set and detaches it from every workspace
-   that still accounted it.
-
-The Host recomputes the eligible set when the request arrives, so a stale page
-cannot delete a different set than it displayed. Deletion is user-only: no
-agent tool reaches it.
+the number of sessions that will be deleted.
 
 ## Limits
 
@@ -49,5 +36,3 @@ agent tool reaches it.
 - Attachments are content-addressed and shared, so they are not reclaimed.
 - The session store is `DSH_HOME`-wide, so a purge affects every profile of the
   same installation.
-- The sidebar keeps its cached session list until the page reloads; the result
-  card offers that reload.

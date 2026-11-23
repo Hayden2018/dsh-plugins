@@ -61,8 +61,6 @@ window.__ModuleLoader__.load({
       reasonUnreadable: 'unreadable',
       reasonCleanup: 'cleanup failed',
       reasonUnknown: 'failed',
-      reload: 'Reload the page',
-      reloadHint: 'The sidebar keeps its cached session list until the page reloads.',
       attachments: 'Attachments referenced by deleted sessions are not removed.',
       empty: 'No archived sessions to delete.',
     };
@@ -104,8 +102,6 @@ window.__ModuleLoader__.load({
       reasonUnreadable: '无法读取',
       reasonCleanup: '清理失败',
       reasonUnknown: '失败',
-      reload: '重新加载页面',
-      reloadHint: '侧边栏会保留缓存的会话列表，直到页面重新加载。',
       attachments: '被删除会话引用的附件不会被移除。',
       empty: '没有可删除的已归档会话。',
     };
@@ -538,23 +534,7 @@ window.__ModuleLoader__.load({
                       reasons: reasonSummary(result.skipped, t),
                     })
                   )
-                : null,
-              h(
-                'div',
-                { className: 'dap-actions' },
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'dap-button',
-                    onClick: () => {
-                      window.location.reload();
-                    },
-                  },
-                  t('reload')
-                ),
-                h('span', { className: 'dap-hint' }, t('reloadHint'))
-              )
+                : null
             )
           : null,
 

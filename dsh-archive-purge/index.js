@@ -15,6 +15,12 @@
  * from every Workspace that still accounts it. Attachments are
  * content-addressed and shared, so they are intentionally left in place.
  *
+ * Each cleaned Session is also announced through the forwarded
+ * `api-session/removed` event, which every connected client applies as a row
+ * removal: the sidebar drops the Session at once instead of keeping a stale
+ * row until the page reloads. A resident Session's teardown may already have
+ * announced the same id, and a repeated removal is harmless.
+ *
  * A Session the Host still keeps resident holds its log's write lease, so the
  * purge runs that Session's agent-loop lifecycle teardown first: the harness
  * exposes no "unload one Session" call, and archiving only stops work. A
@@ -351,6 +357,13 @@ async function runPurge(ctx, scope) {
         reason: result.reason,
         ...(result.detail === undefined ? {} : { detail: result.detail }),
       });
+    }
+    // The Session is gone from the Host: its log was deleted, or its archive
+    // record was cleared because no log was left. Announcing the removal is
+    // what lets every connected client drop the sidebar row now instead of
+    // keeping a stale one until the page reloads.
+    if (result.reason === undefined || result.reason === 'no-log') {
+      ctx.emit('api-session/removed', id);
     }
   }
 
