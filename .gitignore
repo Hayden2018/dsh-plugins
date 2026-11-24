@@ -9,6 +9,7 @@ pnpm-lock.yaml
 # runtime artifacts
 shots/
 dsh-playwright/shots/
+dsh-gemini-image/generated/
 *.log
 
 # local scratch and OS files

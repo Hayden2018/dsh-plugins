@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Gemini 图像生成器",
+    "description": "一个供模型调用的工具，基于 Gemini Nano Banana 2.1 生成与编辑图像。"
+  }
+}

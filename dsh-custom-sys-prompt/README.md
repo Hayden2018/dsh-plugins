@@ -14,10 +14,10 @@ A copy of the shipped `standard` preset's plugin list with an empty persona — 
 
 ### Chat
 
-A deliberately small preset for chat-style research:
+A deliberately small preset for chat-style research and image generation:
 
-- **Tools: exactly three families.** `tool-web` mounts `web_search` and `web_fetch` in the preset's scope. The Knowledge Graph bundle's `kg_*` tools are kept because that bundle registers them at the composition root. `dsh-custom-sys-prompt/chat-tools` keeps only those families.
-- **Knowledge Graph is optional.** Tools are kept by `kg_` name prefix, not by an enumerated list: without the Knowledge Graph bundle there is simply nothing to keep and nothing to ignore, and the preset still composes.
+- **Tools: exactly three families.** `tool-web` mounts `web_search` and `web_fetch` in the preset's scope. The Knowledge Graph bundle's `kg_*` tools and the Gemini image bundle's `generate_image` are kept because those bundles register them at the composition root. `dsh-custom-sys-prompt/chat-tools` keeps those names only and denies every other global tool.
+- **Optional bundles stay optional.** `kg_*` is kept by name prefix and `generate_image` by exact name: without either bundle there is simply nothing to keep and nothing to ignore, the preset still composes, and a bundle installed later is caught by the next `tools/change` sweep.
 
 The editor also keeps its per-agent `prompt-editor:appended` section for the other modes (Standard, PTC, and so on); the gated modes replace the whole presentation with the variable's value. To stop using a mode without uninstalling the bundle, disable its row (`preset-custom-mode` or `preset-chat-mode`) from the profile patch.
 
@@ -40,6 +40,6 @@ For a gated mode the preview shows no base sections, because the gate drops them
 - The read-only preview shows `systemPrompt` sections only; tool schemas and dynamic turn/runtime context injected outside `systemPrompt` are not part of the preview.
 - Changes apply to newly created or resumed sessions (and blank sessions that switch presets); already-running turns keep the prompt captured when their Agent was created.
 - The Agent mode's plugin list is a copy of the shipped `standard` preset. A DSH upgrade that adds or changes a row there is not reflected automatically.
-- The Chat filter denies global tools by name, because the tool registry compiles a restriction when it is created. A tool registered later is caught by the `tools/change` sweep; a name already denied stays denied even if its tool unloads and returns.
+- The Chat filter denies global tools by name, because the tool registry compiles a restriction when it is created. The allowlist is `web_search`, `web_fetch`, `generate_image`, and the `kg_` prefix; everything else stays denied. A tool registered later is caught by the `tools/change` sweep; a name already denied stays denied even if its tool unloads and returns.
 - The filtered Chat executor is a subclass of the deployment's `NativeToolExecutor`, loaded from the installed Host. If that class cannot be resolved, the filter logs a warning and leaves Agent-scoped tools visible; the registry restriction and the execution guard still apply. A DSH upgrade that renames that export would need this row updated.
 - UI copy is provided in English and Chinese (`en` and `zh`).

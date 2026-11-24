@@ -1,9 +1,9 @@
 /**
  * Preset-side tool policy for the bundled Chat mode.
  *
- * Chat answers with web research and the knowledge graph only. Its preset
- * mounts nothing but the web tools, so the tools it could still see come from
- * two other places, and they need two different mechanisms:
+ * Chat answers with web research, the knowledge graph, and generated images.
+ * Its preset mounts nothing but the web tools, so the tools it could still see
+ * come from two other places, and they need two different mechanisms:
  *
  * - Global tools registered at the composition root by other bundles (working
  *   directory, agent team, the browser bundle, session search, …). This row
@@ -21,10 +21,12 @@
  * A `tools/pre-execute` guard closes the last gap: a call outside the allowlist
  * fails with a clear reason even though the schema is no longer advertised.
  *
- * Names are kept by exact match (`web_search`, `web_fetch`) or by the `kg_`
- * prefix, the Knowledge Graph bundle's tools. Prefix matching means a profile
- * without that bundle simply has none to keep, and an Agent without any of them
- * still composes.
+ * Names are kept by exact match (`web_search`, `web_fetch`, `generate_image`)
+ * or by the `kg_` prefix, the Knowledge Graph bundle's tools. Both the image
+ * generator and the knowledge graph are optional installation-wide bundles:
+ * keeping them by name or prefix means a profile without them simply has
+ * nothing to keep, a profile that installs them later is picked up by the next
+ * `tools/change` sweep, and an Agent without any of them still composes.
  *
  * All three contributions are owned by the preset scope: they lift when the
  * preset unloads and never touch another preset's or the global view.
@@ -44,8 +46,13 @@ export const inject = ['tools'];
 /** Plugin package holding the deployment's native tool executor class. */
 const EXECUTOR_PACKAGE = '@deepseek-ai/dsh-tool-executor-native';
 
-/** Preset-mounted web tools; kept even if another layer registers the names. */
-const KEPT_TOOLS = new Set(['web_search', 'web_fetch']);
+/**
+ * Tools kept by exact name: the preset-mounted web tools, plus
+ * `generate_image` from the installation-wide Gemini image bundle. The image
+ * generator registers at the composition root, so it is denied like any other
+ * global tool unless it is named here.
+ */
+const KEPT_TOOLS = new Set(['web_search', 'web_fetch', 'generate_image']);
 
 /** Name prefix of the Knowledge Graph bundle's tools. */
 const KEPT_PREFIX = 'kg_';

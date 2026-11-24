@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36" fill="none" role="img" aria-label="Gemini Image Generator">
+  <defs>
+    <linearGradient id="gi-frame" x1="5" y1="14" x2="22" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67C7FE"/>
+      <stop offset="1" stop-color="#3E5BE0"/>
+    </linearGradient>
+    <linearGradient id="gi-spark" x1="14.35" y1="15.05" x2="21.95" y2="22.65" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7FD4FF"/>
+      <stop offset="1" stop-color="#6A5AE8"/>
+    </linearGradient>
+  </defs>
+  <!-- The artwork's own painted bounds are x 3.35-24.65, y 12.35-32.65.
+       Centring that box on (18,18) keeps it centred at any scale; 1.25x fills
+       the tile with a comfortable margin instead of touching its edges. -->
+  <g transform="translate(18 18) scale(1.25) translate(-14 -22.5)">
+    <g stroke="url(#gi-frame)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4.5" y="13.5" width="19" height="18" rx="3.4"/>
+      <path d="M7.4 29.6L11.5 25.1L14.7 28.3L17.3 25.5" stroke-width="2"/>
+    </g>
+    <path d="M18.15 15.05Q18.15 18.85 21.95 18.85Q18.15 18.85 18.15 22.65Q18.15 18.85 14.35 18.85Q18.15 18.85 18.15 15.05Z" fill="url(#gi-spark)"/>
+  </g>
+</svg>

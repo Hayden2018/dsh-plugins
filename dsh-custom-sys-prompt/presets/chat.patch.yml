@@ -1,15 +1,20 @@
 # Agent preset chat, shipped with Custom System Prompt: a chat mode for web
-# research and knowledge-graph recall with no filesystem, shell, or delegation
-# tools. Like `custom`, the mode's whole system prompt is the text the editor
-# stores for it — the gate row renders the `custom_system_prompt` variable,
-# resolved per assembly from the Agent's live preset, and drops the harness
-# identity, tool guidance, plan policy, and file-reference guidance.
+# research, knowledge-graph recall, and image generation with no filesystem,
+# shell, or delegation tools. Like `custom`, the mode's whole system prompt is
+# the text the editor stores for it — the gate row renders the
+# `custom_system_prompt` variable, resolved per assembly from the Agent's live
+# preset, and drops the harness identity, tool guidance, plan policy, and
+# file-reference guidance.
 #
 # The tool list is deliberate:
 #   - tool-web mounts `web_search` and `web_fetch` in this preset's scope.
 #   - `kg_*` tools come from the installation-wide Knowledge Graph bundle when
 #     it is installed; the mode keeps them by prefix and ignores their absence.
-#   - chat-tools keeps only those families. It denies every other global tool
+#   - `generate_image` comes from the installation-wide Gemini image bundle
+#     when it is installed; the mode keeps that one name and ignores its
+#     absence. The tool writes its JPEG into the working directory and returns
+#     the image itself, so Chat needs no filesystem tool to see the result.
+#   - chat-tools keeps only those tools. It denies every other global tool
 #     (working directory, agent team, browser, session search, …) and also
 #     installs a filtered native executor, because a Host plugin can register a
 #     tool in the Agent's own scope — the CUA provider's `cua_run_code` does —
@@ -31,7 +36,7 @@
       config:
         id: chat
         name: Chat
-        description: 'Web search, web fetch and knowledge-graph tools only; only text you add in Custom System Prompt becomes the system prompt.'
+        description: 'Web search, web fetch, knowledge-graph and image-generation tools only; only text you add in Custom System Prompt becomes the system prompt.'
         order: 1.6
         plugins:
           - id: prompt-gate
